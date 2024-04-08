@@ -4,7 +4,7 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import ToTensor
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold
 import pandas as pd
 import numpy as np
 import nibabel as nib
@@ -47,30 +47,6 @@ class MriDataset(Dataset):
 datasetdir = "/home/damfil/Uni/FYP/resources/mri/ad/dataset/NiftiDataset/RegShortDataset/"
 full_dataset = MriDataset(datasetdir+"labels.csv", datasetdir, ToTensor(), None)
 train_dataset, test_dataset = random_split(full_dataset, [0.8, 0.2])
-
-# defining the dataloaders
-# trainloader = DataLoader(train_dataset, batch_size=3,  shuffle=True, num_workers=0)
-# testloader = DataLoader(test_dataset, batch_size=3,  shuffle=True, num_workers=0)
-
-sample_features, sample_labels = next(iter(trainloader))
-print(f"Length of train loader: {len(trainloader)}") # returns the num of train MRIs div by batch size
-print(f"Feature batch shape: {sample_features.size()}")
-print(f"Labels batch shape: {sample_labels.size()}")
-
-# sanity check
-import matplotlib.pyplot as plt
-
-sample_mri, label = full_dataset.__getitem__(5)
-print(f"Sample MRI has shape: {sample_mri.shape}")
-print(f"Extracted MRI has target value: {labels[label]}")
-# sample_mri = sample_mri.numpy()
-
-# plt.imshow(sample_mri[45], cmap='bone')
-# plt.axis('off')
-# plt.show()
-
-# splitting the dataset into training and testing datasets (cross-validation for validation)
-
 
 ############################## MODEL DEFINITION ##############################
 device = (
@@ -169,7 +145,8 @@ num_epochs = 5
 num_folds = 5
 batch_size = 3
 best_loss = 999
-timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+kf = KFold(num_folds, shuffle=True)
+timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 loss_fn = nn.CrossEntropyLoss()
 writer = SummaryWriter("/home/damfil/Uni/FYP/PyTorchADNet/sample_logs")
 
@@ -188,6 +165,7 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer):
 
         # generate the output
         input = np.expand_dims(input, axis=1) # adds the channel dimension
+        print(f"Sample shape of input: {input.shape}")
         output = model(input)
 
         # Compute the loss and its gradients
@@ -199,7 +177,7 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer):
         opt_fn.step()
 
         prediction = output.argmax(dim=1, keepdim=True)
-        num_correct += prediction.eq(label.view_as(prediction)).sum().item()
+        num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
     avg_loss = running_loss / len(dataloader)
     accuracy = 100 * num_correct / len(dataloader)
@@ -240,21 +218,19 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
 
     return avg_loss, accuracy
 
+print("############### STARTED TRAINING ###############\n\n")
 
-kf = StratifiedKFold(num_folds)
 for fold, (train_idx, val_idx) in enumerate(kf.split(train_dataset)):
-    print(f"FOLD [{fold}]")
-    print("########\n\n")
+    print(f"######## FOLD [{fold}] ########\n")
 
-    trainloader = DataLoader(test_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(train_idx))
-    valloader = DataLoader(test_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(val_idx))
+    trainloader = DataLoader(train_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(train_idx))
+    valloader = DataLoader(train_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(val_idx))
 
     adnet = ADNet().to(device)
     opt_fn = torch.optim.Adam(adnet.parameters(), 1e-4)
 
     for i in range(num_epochs):
-        print(f"EPOCH [{i}]")
-        print("~~~~~~~~~\n")
+        print(f"~~~~~~~~~EPOCH [{i}]~~~~~~~~~\n")
 
         # train the model
         t_loss, t_acc  = train_one_epoch(adnet, trainloader, i, writer)
@@ -269,3 +245,5 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(train_dataset)):
         best_loss = v_loss
         model_path = 'model_{}_{}'.format(timestamp, i)
         torch.save(adnet.state_dict(), model_path) 
+
+print("\n\n\n############### FINISHED TRAINING ###############")
