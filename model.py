@@ -34,7 +34,9 @@ class MriDataset(Dataset):
         mri_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
         # convert from Nifti1 to numpy - this can be done as part of the transform
         mri = nib.load(mri_path)
-        mri = np.array(mri.dataobj)
+        mri = np.array(mri.dataobj,dtype=np.ubyte)
+        if mri.ndim == 4:
+            mri = mri[:, :, :, 0]
         # mri = mri[np.newaxis, ...] # adds the channel dimension
         label = self.img_labels.iloc[idx, 1]
 
@@ -77,64 +79,83 @@ class ADNet(nn.Module):
         self.pool_stride=(2,2,2)
 
         #---------------------------- CONVOLUTION AND BN LAYERS ----------------------------
-        self.conv1 = nn.Conv3d(1, self.n_filters['l1'], self.filter_size, self.stride, self.padding, device=device)
-        self.bn1 = nn.BatchNorm3d(self.n_filters['l1'], device=device)
-        self.pool1 = nn.MaxPool3d(self.pool_size, self.pool_stride, (1,0,1))
+        self.layer1 = nn.Sequential(
+            nn.Conv3d(1, self.n_filters['l1'], self.filter_size, self.stride, self.padding, device=device),
+            nn.ReLU(),
+            nn.BatchNorm3d(self.n_filters['l1'], device=device),
+            nn.MaxPool3d(self.pool_size, self.pool_stride, (1,0,1))
+        )
 
-        self.conv2 = nn.Conv3d(self.n_filters['l1'], self.n_filters['l2'], self.filter_size, self.stride, self.padding, device=device)
-        self.bn2 = nn.BatchNorm3d(self.n_filters['l2'], device=device)
-        self.pool2 = nn.MaxPool3d(self.pool_size, self.pool_stride, (1,1,0))
+        self.layer2 = nn.Sequential(
+            nn.Conv3d(self.n_filters['l1'], self.n_filters['l2'], self.filter_size, self.stride, self.padding, device=device),
+            nn.ReLU(),
+            nn.BatchNorm3d(self.n_filters['l2'], device=device),
+            nn.MaxPool3d(self.pool_size, self.pool_stride, (1,1,0))
+        )
 
-        self.conv3_a = nn.Conv3d(self.n_filters['l2'], self.n_filters['l3'], self.filter_size, self.stride, self.padding, device=device)
-        self.conv3_b = nn.Conv3d(self.n_filters['l3'], self.n_filters['l3'], self.filter_size, self.stride, self.padding, device=device)
-        self.bn3 = nn.BatchNorm3d(self.n_filters['l3'], device=device)
-        self.pool3 = nn.MaxPool3d(self.pool_size, self.pool_stride, (1,0,1))
+        self.layer3 = nn.Sequential(
+            nn.Conv3d(self.n_filters['l2'], self.n_filters['l3'], self.filter_size, self.stride, self.padding, device=device),
+            nn.ReLU(),
+            nn.BatchNorm3d(self.n_filters['l3'], device=device),
+            nn.Conv3d(self.n_filters['l3'], self.n_filters['l3'], self.filter_size, self.stride, self.padding, device=device),
+            nn.ReLU(),
+            nn.BatchNorm3d(self.n_filters['l3'], device=device),
+            nn.MaxPool3d(self.pool_size, self.pool_stride, (1,0,1))
+        )
 
-        self.conv4_a = nn.Conv3d(self.n_filters['l3'], self.n_filters['l4'], self.filter_size, self.stride, self.padding, device=device)
-        self.conv4_b = nn.Conv3d(self.n_filters['l4'], self.n_filters['l4'], self.filter_size, self.stride, self.padding, device=device)
-        self.bn4 = nn.BatchNorm3d(self.n_filters['l4'], device=device)
-        self.pool4 = nn.MaxPool3d(self.pool_size, self.pool_stride, (1,1,0))
+        self.layer4 = nn.Sequential(
+            nn.Conv3d(self.n_filters['l3'], self.n_filters['l4'], self.filter_size, self.stride, self.padding, device=device),
+            nn.ReLU(),
+            nn.BatchNorm3d(self.n_filters['l4'], device=device),
+            nn.Conv3d(self.n_filters['l4'], self.n_filters['l4'], self.filter_size, self.stride, self.padding, device=device),
+            nn.ReLU(),
+            nn.BatchNorm3d(self.n_filters['l4'], device=device),
+            nn.MaxPool3d(self.pool_size, self.pool_stride, (1,1,0))
+        )
 
-        self.conv5_a = nn.Conv3d(self.n_filters['l4'], self.n_filters['l5'], self.filter_size, self.stride, self.padding, device=device)
-        self.conv5_b = nn.Conv3d(self.n_filters['l5'], self.n_filters['l5'], self.filter_size, self.stride, self.padding, device=device)
-        self.bn5 = nn.BatchNorm3d(self.n_filters['l5'], device=device)
-        self.pool5 = nn.MaxPool3d(self.pool_size, self.pool_stride)
+        self.layer5 = nn.Sequential(
+            nn.Conv3d(self.n_filters['l4'], self.n_filters['l5'], self.filter_size, self.stride, self.padding, device=device),
+            nn.ReLU(),
+            nn.BatchNorm3d(self.n_filters['l5'], device=device),
+            nn.Conv3d(self.n_filters['l5'], self.n_filters['l5'], self.filter_size, self.stride, self.padding, device=device),
+            nn.ReLU(),
+            nn.BatchNorm3d(self.n_filters['l5'], device=device),
+            nn.MaxPool3d(self.pool_size, self.pool_stride)
+        )
 
         #---------------------------- FULLY CONNECTED LAYERS ----------------------------
-        self.fc1 = nn.Linear(self.n_filters['l5'], self.n_filters['fc'], device=device)
-        self.fc2 = nn.Linear(self.n_filters['l5'], self.n_filters['fc'], device=device)
-        self.bn6 = nn.BatchNorm3d(self.n_filters['fc'], device=device)
+        self.layer6 = nn.Sequential(
+            nn.Linear(6912, self.n_filters['fc'], device=device),
+            nn.ReLU(),
+            nn.BatchNorm1d(self.n_filters['fc'], device=device),
+            nn.Dropout()
+        )
+
+        self.layer7 = nn.Sequential(
+            nn.Linear(self.n_filters['fc'], self.n_filters['fc'], device=device),
+            nn.ReLU(),
+            nn.BatchNorm1d(self.n_filters['fc'], device=device),
+            nn.Dropout()
+        )
 
         #---------------------------- OUTPUT LAYERS ----------------------------
-        self.fc3 = nn.Linear(self.n_filters['l5'], 3, device=device)
-        self.bn7 = nn.BatchNorm3d(3, device=device)
-
-        self.softmax = nn.Softmax()
-        self.dpo = nn.Dropout3d()
-        self.relu = nn.ReLU()
+        self.layer8 = nn.Sequential(
+            nn.Linear(self.n_filters['fc'], 3, device=device),
+            nn.BatchNorm1d(3, device=device),
+            nn.Softmax()
+        )
 
     def forward(self, x):
-        # 1st layer group
-        x = self.pool1(self.bn1(self.conv1(x)))
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.layer5(x)
 
-        x = self.pool2(self.bn2(self.conv2(x)))
-
-        x = self.bn3(self.conv3_a(x))
-        x = self.pool3(self.bn3(self.conv3_b(x)))
-
-        x = self.bn4(self.conv4_a(x))
-        x = self.pool4(self.bn4(self.conv4_b(x)))
-
-        x = self.bn5(self.conv5_a(x))
-        x = self.pool5(self.bn5(self.conv5_b(x)))
-
-        x = self.bn6(self.relu(self.fc1(x)))
-        x = self.dpo(x)
-        x = self.bn6(self.relu(self.fc2(x)))
-        x = self.dpo(x)
-
-        x = self.bn7(self.fc3(x))
-        x = self.softmax(x)
+        x = x.view(x.size(0),-1)
+        x = self.layer6(x)
+        x = self.layer7(x)
+        x = self.layer8(x)
 
         return x
 
@@ -158,14 +179,13 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer):
     num_correct = 0
 
     for i, data in enumerate(dataloader):
-        input, labels = data
+        input, labels = data[0].to(device), data[1].to(device)
 
         # clear the gradients
         opt_fn.zero_grad()
 
         # generate the output
-        input = np.expand_dims(input, axis=1) # adds the channel dimension
-        print(f"Sample shape of input: {input.shape}")
+        input = input.unsqueeze(1)
         output = model(input)
 
         # Compute the loss and its gradients
