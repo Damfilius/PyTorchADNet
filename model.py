@@ -8,6 +8,7 @@ from sklearn.model_selection import StratifiedKFold
 import pandas as pd
 import numpy as np
 import nibabel as nib
+import datetime
 
 # labels map
 labels = {
@@ -167,6 +168,8 @@ class ADNet(nn.Module):
 num_epochs = 5
 num_folds = 5
 batch_size = 3
+best_loss = 999
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 loss_fn = nn.CrossEntropyLoss()
 writer = SummaryWriter("/home/damfil/Uni/FYP/PyTorchADNet/sample_logs")
 
@@ -204,7 +207,7 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer):
     sum_writer.add_scalar('Loss/train', avg_loss, epoch_idx)
 
     print(f"TRAIN Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}]")
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print("--------------------------------------------------------------------------------------------\n")
 
     return avg_loss, accuracy
 
@@ -233,13 +236,16 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
     sum_writer.add_scalar('Loss/val', avg_loss, epoch_idx)
 
     print(f"VALIDATION Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}]")
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print("--------------------------------------------------------------------------------------------\n")
 
     return avg_loss, accuracy
 
 
 kf = StratifiedKFold(num_folds)
 for fold, (train_idx, val_idx) in enumerate(kf.split(train_dataset)):
+    print(f"FOLD [{fold}]")
+    print("########\n\n")
+
     trainloader = DataLoader(test_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(train_idx))
     valloader = DataLoader(test_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(val_idx))
 
@@ -247,9 +253,19 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(train_dataset)):
     opt_fn = torch.optim.Adam(adnet.parameters(), 1e-4)
 
     for i in range(num_epochs):
+        print(f"EPOCH [{i}]")
+        print("~~~~~~~~~\n")
+
         # train the model
-        train_one_epoch(adnet, trainloader, i, writer)
+        t_loss, t_acc  = train_one_epoch(adnet, trainloader, i, writer)
 
         # validate the model on the parameters
-        validate_one_epoch(adnet, valloader, i, writer)
-            
+        v_loss, v_acc = validate_one_epoch(adnet, valloader, i, writer)
+
+        writer.add_scalars('Training vs. Validation Loss', { 'Training' : t_loss, 'Validation' : v_loss }, i)
+        writer.flush()
+
+    if v_loss < best_loss:
+        best_loss = v_loss
+        model_path = 'model_{}_{}'.format(timestamp, i)
+        torch.save(adnet.state_dict(), model_path) 
