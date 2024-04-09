@@ -164,7 +164,7 @@ class ADNet(nn.Module):
 
 num_epochs = 5
 num_folds = 5
-batch_size = 3
+batch_size = 4
 best_loss = 999
 kf = KFold(num_folds, shuffle=True)
 timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -219,7 +219,7 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
     for i, data in enumerate(dataloader):
         input, label = data
 
-        input = np.expand_dims(input, axis=1) # adds the channel dimension
+        input = input.unsqueeze(1)
         output = model(input)
 
         loss = loss_fn(output, input)
