@@ -200,11 +200,11 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer):
         num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
     avg_loss = running_loss / len(dataloader)
-    accuracy = 100 * num_correct / len(dataloader)
+    accuracy = 100 * num_correct / len(dataloader.dataset)
 
     sum_writer.add_scalar('Loss/train', avg_loss, epoch_idx)
 
-    print(f"TRAIN Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}]")
+    print(f"TRAIN Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
     print("--------------------------------------------------------------------------------------------\n")
 
     return avg_loss, accuracy
@@ -229,11 +229,11 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
         num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
     avg_loss = running_loss / len(dataloader)
-    accuracy = 100 * num_correct / len(dataloader)
+    accuracy = 100 * num_correct / len(dataloader.dataset)
 
     sum_writer.add_scalar('Loss/val', avg_loss, epoch_idx)
 
-    print(f"VALIDATION Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}]")
+    print(f"VALIDATION Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
     print("--------------------------------------------------------------------------------------------\n")
 
     return avg_loss, accuracy
