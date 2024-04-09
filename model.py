@@ -217,16 +217,16 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
     num_correct=0
 
     for i, data in enumerate(dataloader):
-        input, label = data
+        input, labels = data[0].to(device), data[1].to(device)
 
         input = input.unsqueeze(1)
         output = model(input)
 
-        loss = loss_fn(output, input)
+        loss = loss_fn(output, labels)
         running_loss += loss.item()
 
         prediction = output.argmax(dim=1, keepdim=True)
-        num_correct += prediction.eq(label.view_as(prediction)).sum().item()
+        num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
     avg_loss = running_loss / len(dataloader)
     accuracy = 100 * num_correct / len(dataloader)
