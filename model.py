@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import nibabel as nib
 import datetime
+from tqdm import tqdm
 
 # labels map
 labels = {
@@ -165,6 +166,9 @@ class ADNet(nn.Module):
 num_epochs = 5
 num_folds = 5
 batch_size = 4
+train_losses = np.array([]); val_losses = np.array([])
+train_accs = np.array([]); val_accs = np.array([])
+
 kf = KFold(num_folds, shuffle=True)
 timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 loss_fn = nn.CrossEntropyLoss()
@@ -174,10 +178,9 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer, optimizer, loss_fn
     model.train(True)
 
     running_loss = 0.
-    avg_loss = 0.
     num_correct = 0
 
-    for i, data in enumerate(dataloader):
+    for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
         input, labels = data[0].to(device), data[1].to(device)
 
         # clear the gradients
@@ -203,8 +206,7 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer, optimizer, loss_fn
 
     sum_writer.add_scalar('Loss/train', avg_loss, epoch_idx)
 
-    print(f"TRAIN Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
-    print("--------------------------------------------------------------------------------------------\n")
+    print(f"[TRAIN]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
     return avg_loss, accuracy
 
@@ -215,7 +217,7 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
     avg_loss = 0.
     num_correct=0
 
-    for i, data in enumerate(dataloader):
+    for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
         input, labels = data[0].to(device), data[1].to(device)
 
         input = input.unsqueeze(1)
@@ -232,8 +234,7 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
 
     sum_writer.add_scalar('Loss/val', avg_loss, epoch_idx)
 
-    print(f"VALIDATION Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
-    print("--------------------------------------------------------------------------------------------\n")
+    print(f"[VAL]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
     return avg_loss, accuracy
 
@@ -241,26 +242,30 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
 def train_model():
     best_loss = 999
 
-    print("############### STARTED TRAINING ###############\n\n")
+    print(f"Number of training samples: [{len(train_dataset)}]")
+    print(f"Number of testing samples: [{len(test_dataset)}]")
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(train_dataset)):
-        print(f"######## FOLD [{fold}] ########\n")
 
         trainloader = DataLoader(train_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(train_idx))
         valloader = DataLoader(train_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(val_idx))
 
         adnet = ADNet().to(device)
-        opt_fn = torch.optim.Adam(adnet.parameters(), 1e-4)
+        opt_fn = torch.optim.Adam(adnet.parameters(), 2e-3)
 
         v_loss = 0
         for i in range(num_epochs):
-            print(f"~~~~~~~~~EPOCH [{i}]~~~~~~~~~\n")
 
             # train the model
             t_loss, t_acc  = train_one_epoch(adnet, trainloader, i, writer, opt_fn, loss_fn)
 
             # validate the model on the parameters
             v_loss, v_acc = validate_one_epoch(adnet, valloader, i, writer)
+
+            np.append(train_losses, t_loss)
+            np.append(train_accs, t_acc)
+            np.append(val_losses, v_loss)
+            np.append(val_accs, v_acc)
 
             writer.add_scalars('Training vs. Validation Loss', { 'Training' : t_loss, 'Validation' : v_loss }, i)
             writer.flush()
@@ -270,6 +275,6 @@ def train_model():
             model_path = 'model_{}_{}'.format(timestamp, fold)
             torch.save(adnet.state_dict(), model_path) 
 
-    print("\n\n\n############### FINISHED TRAINING ###############")
+        print("--------------------------------------------------------------------------------------------\n")
 
 train_model()
