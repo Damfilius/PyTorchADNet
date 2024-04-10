@@ -60,7 +60,7 @@ device = (
 )
 print(f"Using {device} device")
 
-# model expects an input of size (3, 1, 91, 91, 109)
+# model expects an input of size (4, 1, 91, 91, 109)
 class ADNet(nn.Module):
     def __init__(self):
         super().__init__()
@@ -142,7 +142,7 @@ class ADNet(nn.Module):
         self.layer8 = nn.Sequential(
             nn.Linear(self.n_filters['fc'], 3, device=device),
             nn.BatchNorm1d(3, device=device),
-            nn.Softmax()
+            nn.Softmax(dim=0)
         )
 
     def forward(self, x):
@@ -165,13 +165,12 @@ class ADNet(nn.Module):
 num_epochs = 5
 num_folds = 5
 batch_size = 4
-best_loss = 999
 kf = KFold(num_folds, shuffle=True)
 timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 loss_fn = nn.CrossEntropyLoss()
 writer = SummaryWriter("/home/damfil/Uni/FYP/PyTorchADNet/sample_logs")
 
-def train_one_epoch(model, dataloader, epoch_idx, sum_writer):
+def train_one_epoch(model, dataloader, epoch_idx, sum_writer, optimizer, loss_fn):
     model.train(True)
 
     running_loss = 0.
@@ -182,7 +181,7 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer):
         input, labels = data[0].to(device), data[1].to(device)
 
         # clear the gradients
-        opt_fn.zero_grad()
+        optimizer.zero_grad()
 
         # generate the output
         input = input.unsqueeze(1)
@@ -194,7 +193,7 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer):
         loss.backward()
 
         # Adjust learning weights
-        opt_fn.step()
+        optimizer.step()
 
         prediction = output.argmax(dim=1, keepdim=True)
         num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
@@ -238,32 +237,39 @@ def validate_one_epoch(model, dataloader, epoch_idx, sum_writer):
 
     return avg_loss, accuracy
 
-print("############### STARTED TRAINING ###############\n\n")
 
-for fold, (train_idx, val_idx) in enumerate(kf.split(train_dataset)):
-    print(f"######## FOLD [{fold}] ########\n")
+def train_model():
+    best_loss = 999
 
-    trainloader = DataLoader(train_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(train_idx))
-    valloader = DataLoader(train_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(val_idx))
+    print("############### STARTED TRAINING ###############\n\n")
 
-    adnet = ADNet().to(device)
-    opt_fn = torch.optim.Adam(adnet.parameters(), 1e-4)
+    for fold, (train_idx, val_idx) in enumerate(kf.split(train_dataset)):
+        print(f"######## FOLD [{fold}] ########\n")
 
-    for i in range(num_epochs):
-        print(f"~~~~~~~~~EPOCH [{i}]~~~~~~~~~\n")
+        trainloader = DataLoader(train_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(train_idx))
+        valloader = DataLoader(train_dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(val_idx))
 
-        # train the model
-        t_loss, t_acc  = train_one_epoch(adnet, trainloader, i, writer)
+        adnet = ADNet().to(device)
+        opt_fn = torch.optim.Adam(adnet.parameters(), 1e-4)
 
-        # validate the model on the parameters
-        v_loss, v_acc = validate_one_epoch(adnet, valloader, i, writer)
+        v_loss = 0
+        for i in range(num_epochs):
+            print(f"~~~~~~~~~EPOCH [{i}]~~~~~~~~~\n")
 
-        writer.add_scalars('Training vs. Validation Loss', { 'Training' : t_loss, 'Validation' : v_loss }, i)
-        writer.flush()
+            # train the model
+            t_loss, t_acc  = train_one_epoch(adnet, trainloader, i, writer, opt_fn, loss_fn)
 
-    if v_loss < best_loss:
-        best_loss = v_loss
-        model_path = 'model_{}_{}'.format(timestamp, i)
-        torch.save(adnet.state_dict(), model_path) 
+            # validate the model on the parameters
+            v_loss, v_acc = validate_one_epoch(adnet, valloader, i, writer)
 
-print("\n\n\n############### FINISHED TRAINING ###############")
+            writer.add_scalars('Training vs. Validation Loss', { 'Training' : t_loss, 'Validation' : v_loss }, i)
+            writer.flush()
+
+        if v_loss < best_loss:
+            best_loss = v_loss
+            model_path = 'model_{}_{}'.format(timestamp, fold)
+            torch.save(adnet.state_dict(), model_path) 
+
+    print("\n\n\n############### FINISHED TRAINING ###############")
+
+train_model()
