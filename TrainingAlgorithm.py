@@ -1,10 +1,9 @@
 import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader
+from torch import save
+from torch.utils.data import DataLoader, SubsetRandomSampler
 from sklearn.model_selection import StratifiedKFold
-from tqdm import tqdm
-from Utils import get_distribution
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 import datetime
 
 kf = StratifiedKFold(n_splits=5, shuffle=True)
@@ -49,10 +48,10 @@ def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device
     model.eval()
 
     running_loss = 0.
-    avg_loss = 0.
-    num_correct=0
+    num_correct = 0
 
     for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
+
         input, labels = data[0].to(device), data[1].to(device)
 
         input = input.unsqueeze(1)
@@ -75,26 +74,17 @@ def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device
 
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, device):
     train_losses = np.array([])
-    test_losses = np.array([])
+    val_losses = np.array([])
     train_accs = np.array([])
-    train_accs = np.array([])
+    val_accs = np.array([])
 
     best_loss = 999
-
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-
-    print(f"Number of training samples: [{len(dataset)}]")
 
     for fold, (training_idx, val_idx) in enumerate(kf.split(dataset, train_labels)):
 
-        training_ds = torch.utils.data.Subset(dataset, training_idx)
-        validation_ds = torch.utils.data.Subset(dataset, val_idx)
-
-        get_distribution(training_ds)
-        get_distribution(validation_ds)
-
-        trainloader = DataLoader(dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(training_idx))
-        valloader = DataLoader(dataset, batch_size, sampler=torch.utils.data.SubsetRandomSampler(val_idx))
+        trainloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(training_idx))
+        valloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(val_idx))
 
         v_loss = 0
         for i in range(num_epochs):
@@ -116,6 +106,6 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         if v_loss < best_loss:
             best_loss = v_loss
             model_path = 'model_{}_{}'.format(timestamp, fold)
-            torch.save(model.state_dict(), model_path)
+            save(model.state_dict(), model_path)
 
         print("--------------------------------------------------------------------------------------------\n")
