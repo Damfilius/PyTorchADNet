@@ -6,9 +6,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
 
-kf = StratifiedKFold(n_splits=5, shuffle=True)
-writer = SummaryWriter("/home/damfil/Uni/FYP/PyTorchADNet/sample_logs")
-
 def train_one_epoch(model, dataloader, epoch_idx, sum_writer, opt_fn, loss_fn, device):
     model.train(True)
 
@@ -72,7 +69,10 @@ def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device
 
     return avg_loss, accuracy
 
-def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, device):
+def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
+    kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
+    writer = SummaryWriter("/home/damfil/Uni/FYP/PyTorchADNet/sample_logs")
+
     train_losses = np.array([])
     val_losses = np.array([])
     train_accs = np.array([])

@@ -42,7 +42,7 @@ def main(arguments):
     batch_size = 4
 
     # training
-    train_model(adnet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, device)
+    train_model(adnet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, num_folds, device)
 
 # starting point
 if __name__ == '__main__':
