@@ -34,7 +34,7 @@ def main(arguments):
 
     # model
     adnet = ADNet().to(device)
-    adam = optim.Adam(adnet.parameters(), 2e-3)
+    adam = optim.Adam(adnet.parameters(), 0.001)
     cross_entropy = nn.CrossEntropyLoss()
     train_labels = full_dataset.get_labels(train_idx)
     num_epochs = args.epochs

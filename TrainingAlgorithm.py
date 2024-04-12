@@ -6,6 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
 
+
 def train_one_epoch(model, dataloader, epoch_idx, sum_writer, opt_fn, loss_fn, device):
     model.train(True)
 
@@ -13,23 +14,23 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer, opt_fn, loss_fn, d
     num_correct = 0
 
     for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
-        input, labels = data[0].to(device), data[1].to(device)
+        mri, labels = data[0].to(device), data[1].to(device)
 
-        # clear the gradients
-        opt_fn.zero_grad()
+        # zero out the gradients
+        model.zero_grad(set_to_none=False)
 
         # generate the output
-        input = input.unsqueeze(1)
-        output = model(input)
+        mri = mri.unsqueeze(1)
+        output = model(mri)
 
         # Compute the loss and its gradients
         loss = loss_fn(output, labels)
-        running_loss += loss.item()
         loss.backward()
 
         # Adjust learning weights
         opt_fn.step()
 
+        running_loss += loss.item()
         prediction = output.argmax(dim=1, keepdim=True)
         num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
@@ -41,18 +42,18 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer, opt_fn, loss_fn, d
 
     return avg_loss, accuracy
 
+
 def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device):
-    model.eval()
+    model.train(False)
 
     running_loss = 0.
     num_correct = 0
 
     for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
+        mri, labels = data[0].to(device), data[1].to(device)
 
-        input, labels = data[0].to(device), data[1].to(device)
-
-        input = input.unsqueeze(1)
-        output = model(input)
+        mri = mri.unsqueeze(1)
+        output = model(mri)
 
         loss = loss_fn(output, labels)
         running_loss += loss.item()
@@ -68,6 +69,7 @@ def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device
     print(f"[VAL]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
     return avg_loss, accuracy
+
 
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
@@ -88,9 +90,8 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
 
         v_loss = 0
         for i in range(num_epochs):
-
             # train the model
-            t_loss, t_acc  = train_one_epoch(model, trainloader, i, writer, opt_fn, loss_fn, device)
+            t_loss, t_acc = train_one_epoch(model, trainloader, i, writer, opt_fn, loss_fn, device)
 
             # validate the model on the parameters
             v_loss, v_acc = validate_one_epoch(model, loss_fn, valloader, i, writer, device)
@@ -100,7 +101,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
             train_accs = np.append(train_accs, t_acc)
             val_accs = np.append(val_accs, v_acc)
 
-            writer.add_scalars('Training vs. Validation Loss', { 'Training' : t_loss, 'Validation' : v_loss }, i)
+            writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, i)
             writer.flush()
 
         if v_loss < best_loss:
