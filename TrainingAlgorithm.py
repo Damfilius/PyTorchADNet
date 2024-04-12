@@ -93,7 +93,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
             t_loss, t_acc  = train_one_epoch(model, trainloader, i, writer, opt_fn, loss_fn, device)
 
             # validate the model on the parameters
-            v_loss, v_acc = validate_one_epoch(model, valloader, i, writer, device)
+            v_loss, v_acc = validate_one_epoch(model, loss_fn, valloader, i, writer, device)
 
             train_losses = np.append(train_losses, t_loss)
             val_losses = np.append(val_losses, v_loss)

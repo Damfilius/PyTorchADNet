@@ -1,4 +1,6 @@
+import argparse
 from torch import equal
+
 
 def get_distribution(dataset):
     counterAD = 0
@@ -22,9 +24,11 @@ def get_distribution(dataset):
     print(f"Distributions of the classes are following:\nAD - [{ad}%]\nCN - [{cn}%]\nMCI - [{mci}%]\n")
     return counterAD, counterCN, counterMCI
 
+
 def save_params(parameters, arr):
     for param in parameters:
         arr.append(param)
+
 
 def check_params(params1, params2):
     if len(params1) != len(params2):
@@ -38,6 +42,7 @@ def check_params(params1, params2):
 
     return
 
+
 def get_length(parameters):
     counter = 0
     for param in parameters:
@@ -45,3 +50,12 @@ def get_length(parameters):
 
     print(f"Mum. of parameters: [{counter}]")
     return counter
+
+
+def parse_args(arguments):
+    parser = argparse.ArgumentParser(prog="ADNet Model",
+                                     description="Model Training and Diagnosis of AD through MRI Scans")
+    parser.add_argument('dataset')
+    parser.add_argument('-e', '--epochs', type=int, default=150)
+    args = parser.parse_args(arguments)
+    return args
