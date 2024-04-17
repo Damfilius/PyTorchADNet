@@ -19,6 +19,7 @@ class MriDataset(Dataset):
         # convert from Nifti1 to numpy - this can be done as part of the transform
         mri = nib.load(mri_path)
         mri = np.array(mri.dataobj,dtype=np.ubyte)
+        # remove the 4th dimension
         if mri.ndim == 4:
             mri = mri[:, :, :, 0]
         # mri = mri[np.newaxis, ...] # adds the channel dimension
