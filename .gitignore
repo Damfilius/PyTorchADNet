@@ -2,3 +2,5 @@ model*
 sample_logs
 epoch*
 .idea
+.venv
+__pycache__
