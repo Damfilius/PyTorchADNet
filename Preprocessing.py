@@ -8,10 +8,7 @@ from fsl.wrappers.misc import fslroi
 from tqdm import tqdm
 
 
-def bet_and_reg():
-    output_dir = "/home/damfil/Uni/FYP/resources/mri/ad/dataset/NiftiDataset/RegShortDataset"
-    input_dir = "/home/damfil/Uni/FYP/resources/mri/ad/dataset/NiftiDataset/ShortDataset"
-    ref_file = "/usr/local/fsl/data/standard/MNI152_T1_1mm_brain.nii.gz"
+def bet_and_reg(output_dir, input_dir, ref_file):
     dir_list = os.listdir(input_dir)
 
     for i in tqdm(range(len(dir_list)), total=len(dir_list)):
@@ -35,9 +32,7 @@ def bet_and_reg():
     print("Preprocessing is done!")
 
 
-def compute_min_roi():
-    input_dir = "/home/damfil/Uni/FYP/resources/mri/ad/dataset/NiftiDataset/RegShortDataset"
-    output_dir = "/home/damfil/Uni/FYP/resources/mri/ad/dataset/NiftiDataset/RegMinROIDataset"
+def compute_min_roi(input_dir, output_dir):
     dir_list = os.listdir(input_dir)
 
     min_vals = [999, 999, 999]
@@ -72,6 +67,3 @@ def compute_min_roi():
         x_start, y_start, z_start = min_vals
         x_size, y_size, z_size = max_lens
         fslroi(in_file, out_file, x_start, x_size, y_start, y_size, z_start, z_size)
-
-
-compute_min_roi()
