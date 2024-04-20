@@ -1,6 +1,8 @@
 import numpy as np
+import torch
 from torch import save
 from torch.utils.data import DataLoader, SubsetRandomSampler
+from torcheval.metrics.functional import multiclass_confusion_matrix
 from sklearn.model_selection import StratifiedKFold
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -116,7 +118,7 @@ def test_model(model, loss_fn, test_dataset, batch_size, device):
     model.train(False)
     test_loader = DataLoader(test_dataset, batch_size)
     running_loss = 0
-    num_correct = 0
+    confusion_matrix = torch.zeros(3, 3)
 
     for i, data in tqdm(enumerate(test_loader), total=len(test_loader)):
         inputs, labels = data[0].to(device), data[1].to(device)
@@ -128,11 +130,12 @@ def test_model(model, loss_fn, test_dataset, batch_size, device):
         running_loss += loss.item()
 
         prediction = outputs.argmax(dim=1, keepdim=True)
-        num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
+        confusion_matrix += multiclass_confusion_matrix(prediction, labels, 3)
 
     avg_loss = running_loss / len(test_loader)
-    accuracy = 100 * num_correct / len(test_loader.dataset)
+    num_correct = confusion_matrix[0, 0] + confusion_matrix [1, 1] + confusion_matrix[2, 2]
+    accuracy = num_correct / len(test_loader.dataset)
 
     print(f"[TEST]: Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
-    return avg_loss, accuracy
+    return avg_loss, confusion_matrix
