@@ -110,3 +110,29 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
             save(model.state_dict(), model_path)
 
         print("--------------------------------------------------------------------------------------------\n")
+
+
+def test_model(model, loss_fn, test_dataset, batch_size, device):
+    model.train(False)
+    test_loader = DataLoader(test_dataset, batch_size)
+    running_loss = 0
+    num_correct = 0
+
+    for i, data in tqdm(enumerate(test_loader), total=len(test_loader)):
+        inputs, labels = data[0].to(device), data[1].to(device)
+
+        inputs = inputs.usqueeze(1)
+        outputs = model(inputs)
+
+        loss = loss_fn(outputs, labels)
+        running_loss += loss.item()
+
+        prediction = outputs.argmax(dim=1, keepdim=True)
+        num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
+
+    avg_loss = running_loss / len(test_loader)
+    accuracy = 100 * num_correct / len(test_loader.dataset)
+
+    print(f"[TEST]: Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
+
+    return avg_loss, accuracy
