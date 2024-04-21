@@ -5,11 +5,17 @@ from torch.utils.data import DataLoader, SubsetRandomSampler
 from torcheval.metrics.functional import multiclass_confusion_matrix
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelBinarizer
-from sklearn.metrics import RocCurveDisplay
-# import matplotlib.pyplot as plt
+from sklearn import metrics
+import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
+
+label_map = {
+    0: "CN",
+    1: "AD",
+    2: "MCI",
+}
 
 
 def train_one_epoch(model, dataloader, epoch_idx, sum_writer, opt_fn, loss_fn, device):
@@ -120,69 +126,58 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
 def compute_f1_scores(confusion_matrix):
     sum_horiz = np.sum(confusion_matrix, axis=1)
     sum_vert = np.sum(confusion_matrix, axis=0)
-    first_elems = confusion_matrix[:, 0]
+    true_positives = confusion_matrix.diagonal()
 
-    precisions = first_elems / sum_vert
-    recalls = first_elems / sum_horiz
+    precisions = true_positives / sum_vert
+    recalls = true_positives / sum_horiz
 
     f1_scores = (2 * precisions * recalls) / (precisions + recalls)
     return f1_scores
+
+
+def compute_ROC_curves(output_scores, test_labels):
+    label_binarizer = LabelBinarizer().fit(test_labels)
+    test_one_hot_encoded = label_binarizer.transform(test_labels)
+
+    for i in range(3):
+        fpr, tpr, thresholds = metrics.roc_curve(test_one_hot_encoded[:, i], output_scores[:, i])
+        auc = metrics.auc(fpr, tpr)
+        display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc, estimator_name='AD estimator')
+        display.plot()
+        plt.savefig(f"ROCCurves/{label_map[i]}_ROC_curve.png")
 
 
 def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     model.train(False)
     test_loader = DataLoader(test_dataset, batch_size)
     running_loss = 0
-    confusion_matrix = torch.zeros(3, 3)
-    mri_scores = np.array([])
-
-    # preprocessing the labels for multiclass ROC curves
-    cn_class = 0
-    ad_class = 1
-    mci_class = 2
-    label_binarizer = LabelBinarizer().fit(test_labels)
-    test_one_hot_encoded = label_binarizer.transform(test_labels)
+    # confusion_matrix = torch.zeros(3, 3)
+    confusion_matrix = np.zeros((3, 3))
+    output_scores = np.array([])
 
     for i, data in tqdm(enumerate(test_loader), total=len(test_loader)):
         inputs, labels = data[0].to(device), data[1].to(device)
 
-        inputs = inputs.usqueeze(1)
+        inputs = inputs.unsqueeze(1)
         outputs = model(inputs)
-        mri_scores = np.append(mri_scores, outputs)
+        output_scores = np.append(output_scores, outputs.cpu().detach().numpy())
 
         loss = loss_fn(outputs, labels)
         running_loss += loss.item()
 
         prediction = outputs.argmax(dim=1, keepdim=True)
-        confusion_matrix += multiclass_confusion_matrix(prediction, labels, 3)
+        confusion_matrix[labels.item(), prediction.item()] += 1
+        # confusion_matrix += multiclass_confusion_matrix(prediction, labels, 3)
 
     avg_loss = running_loss / len(test_loader)
     num_correct = confusion_matrix[0, 0] + confusion_matrix[1, 1] + confusion_matrix[2, 2]
-    accuracy = num_correct / len(test_loader.dataset)
+    accuracy = 100 * num_correct / len(test_loader.dataset)
     print(f"[TEST]: Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
     f1_scores = compute_f1_scores(confusion_matrix)
 
     # computing the ROC curve
-    display_ad = RocCurveDisplay.from_predictions(test_one_hot_encoded[:, ad_class],
-                                                  mri_scores[:, ad_class],
-                                                  name=f"AD vs the rest",
-                                                  plot_chance_level=True)
-    _ = display_ad.ax_.set(xlabel="False Positive Rate", ylabel="True Positive Rate",
-                           title="One-vs-Rest ROC curves:\nAD vs (CN & MCI)")
-
-    display_cn = RocCurveDisplay.from_predictions(test_one_hot_encoded[:, cn_class],
-                                                  mri_scores[:, cn_class],
-                                                  name=f"CN vs the rest",
-                                                  plot_chance_level=True)
-    _ = display_cn.ax_.set(xlabel="False Positive Rate", ylabel="True Positive Rate",
-                           title="One-vs-Rest ROC curves:\nCN vs (AD & MCI)")
-
-    display_mci = RocCurveDisplay.from_predictions(test_one_hot_encoded[:, mci_class],
-                                                   mri_scores[:, mci_class],
-                                                   name=f"MCI vs the rest",
-                                                   plot_chance_level=True)
-    _ = display_mci.ax_.set(xlabel="False Positive Rate", ylabel="True Positive Rate",
-                            title="One-vs-Rest ROC curves:\nMCI vs (CN & AD)")
+    output_scores = np.reshape(output_scores, (-1, 3))
+    compute_ROC_curves(output_scores, test_labels)
 
     return avg_loss, confusion_matrix, f1_scores
