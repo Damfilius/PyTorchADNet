@@ -117,6 +117,18 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         print("--------------------------------------------------------------------------------------------\n")
 
 
+def compute_f1_scores(confusion_matrix):
+    sum_horiz = np.sum(confusion_matrix, axis=1)
+    sum_vert = np.sum(confusion_matrix, axis=0)
+    first_elems = confusion_matrix[:, 0]
+
+    precisions = first_elems / sum_vert
+    recalls = first_elems / sum_horiz
+
+    f1_scores = (2 * precisions * recalls) / (precisions + recalls)
+    return f1_scores
+
+
 def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     model.train(False)
     test_loader = DataLoader(test_dataset, batch_size)
@@ -147,6 +159,9 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     avg_loss = running_loss / len(test_loader)
     num_correct = confusion_matrix[0, 0] + confusion_matrix[1, 1] + confusion_matrix[2, 2]
     accuracy = num_correct / len(test_loader.dataset)
+    print(f"[TEST]: Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
+
+    f1_scores = compute_f1_scores(confusion_matrix)
 
     # computing the ROC curve
     display_ad = RocCurveDisplay.from_predictions(test_one_hot_encoded[:, ad_class],
@@ -170,6 +185,4 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     _ = display_mci.ax_.set(xlabel="False Positive Rate", ylabel="True Positive Rate",
                             title="One-vs-Rest ROC curves:\nMCI vs (CN & AD)")
 
-    print(f"[TEST]: Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
-
-    return avg_loss, confusion_matrix
+    return avg_loss, confusion_matrix, f1_scores
