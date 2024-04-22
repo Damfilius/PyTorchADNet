@@ -185,8 +185,8 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     compute_ROC_curves(output_scores, test_labels)
 
     save_metrics_to_file(confusion_matrix, f1_scores, output_scores,
-                         "PerfoermanceMetrics/ConfusionMatrix.csv",
-                         "PerfoermanceMetrics/F1Scores.csv",
-                         "PerfoermanceMetrics/ConfusionMatrix.csv")
+                         "PerformanceMetrics/ConfusionMatrix.csv",
+                         "PerformanceMetrics/F1Scores.csv",
+                         "PerformanceMetrics/ConfusionMatrix.csv")
 
     return avg_loss, confusion_matrix, f1_scores
