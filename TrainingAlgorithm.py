@@ -147,11 +147,17 @@ def compute_ROC_curves(output_scores, test_labels):
         plt.savefig(f"ROCCurves/{label_map[i]}_ROC_curve.png")
 
 
+def update_confusion_matrix(confusion_matrix, prediction, labels):
+    for i in range(len(prediction)):
+        confusion_matrix[labels[i].item(), prediction[i].item()] += 1
+
+    return confusion_matrix
+
+
 def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     model.train(False)
     test_loader = DataLoader(test_dataset, batch_size)
     running_loss = 0
-    # confusion_matrix = torch.zeros(3, 3)
     confusion_matrix = np.zeros((3, 3))
     output_scores = np.array([])
 
@@ -166,8 +172,7 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
         running_loss += loss.item()
 
         prediction = outputs.argmax(dim=1, keepdim=True)
-        confusion_matrix[labels.item(), prediction.item()] += 1
-        # confusion_matrix += multiclass_confusion_matrix(prediction, labels, 3)
+        confusion_matrix = update_confusion_matrix(confusion_matrix, prediction, labels)
 
     avg_loss = running_loss / len(test_loader)
     num_correct = confusion_matrix[0, 0] + confusion_matrix[1, 1] + confusion_matrix[2, 2]
