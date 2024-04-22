@@ -17,7 +17,7 @@ label_map = {
 }
 
 
-def train_one_epoch(model, dataloader, epoch_idx, sum_writer, opt_fn, loss_fn, device):
+def train_one_epoch(model, dataloader, epoch_idx, opt_fn, loss_fn, device):
     model.train(True)
 
     running_loss = 0.
@@ -47,13 +47,13 @@ def train_one_epoch(model, dataloader, epoch_idx, sum_writer, opt_fn, loss_fn, d
     avg_loss = running_loss / len(dataloader)
     accuracy = 100 * num_correct / len(dataloader.dataset)
 
-    sum_writer.add_scalar('Loss/train', avg_loss, epoch_idx)
+    # sum_writer.add_scalar('Loss/train', avg_loss, epoch_idx)
     print(f"[TRAIN]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
     return avg_loss, accuracy
 
 
-def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device):
+def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, device):
     model.train(False)
 
     running_loss = 0.
@@ -74,7 +74,7 @@ def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device
     avg_loss = running_loss / len(dataloader)
     accuracy = 100 * num_correct / len(dataloader.dataset)
 
-    sum_writer.add_scalar('Loss/val', avg_loss, epoch_idx)
+    # sum_writer.add_scalar('Loss/val', avg_loss, epoch_idx)
 
     print(f"[VAL]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
@@ -83,7 +83,7 @@ def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device
 
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
-    writer = SummaryWriter("/logs")
+    # writer = SummaryWriter("/logs")
 
     train_losses = np.array([])
     val_losses = np.array([])
@@ -101,18 +101,18 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         v_loss = 0
         for i in range(num_epochs):
             # train the model
-            t_loss, t_acc = train_one_epoch(model, trainloader, i, writer, opt_fn, loss_fn, device)
+            t_loss, t_acc = train_one_epoch(model, trainloader, i, opt_fn, loss_fn, device)
 
             # validate the model on the parameters
-            v_loss, v_acc = validate_one_epoch(model, loss_fn, valloader, i, writer, device)
+            v_loss, v_acc = validate_one_epoch(model, loss_fn, valloader, i, device)
 
             train_losses = np.append(train_losses, t_loss)
             val_losses = np.append(val_losses, v_loss)
             train_accs = np.append(train_accs, t_acc)
             val_accs = np.append(val_accs, v_acc)
 
-            writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, i)
-            writer.flush()
+            # writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, i)
+            # writer.flush()
 
         if v_loss < best_loss:
             best_loss = v_loss
