@@ -1,8 +1,6 @@
 import numpy as np
-import torch
 from torch import save
 from torch.utils.data import DataLoader, SubsetRandomSampler
-from torcheval.metrics.functional import multiclass_confusion_matrix
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelBinarizer
 from sklearn import metrics
@@ -10,6 +8,7 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
+from Utils import save_metrics_to_file
 
 label_map = {
     0: "CN",
@@ -184,5 +183,10 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     # computing the ROC curve
     output_scores = np.reshape(output_scores, (-1, 3))
     compute_ROC_curves(output_scores, test_labels)
+
+    save_metrics_to_file(confusion_matrix, f1_scores, output_scores,
+                         "PerfoermanceMetrics/ConfusionMatrix.csv",
+                         "PerfoermanceMetrics/F1Scores.csv",
+                         "PerfoermanceMetrics/ConfusionMatrix.csv")
 
     return avg_loss, confusion_matrix, f1_scores

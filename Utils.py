@@ -1,4 +1,6 @@
 import argparse
+
+import numpy as np
 from torch import equal
 
 
@@ -59,3 +61,9 @@ def parse_args(arguments):
     parser.add_argument('-e', '--epochs', type=int, default=150)
     args = parser.parse_args(arguments)
     return args
+
+
+def save_metrics_to_file(confusion_matrix, f1_scores, output_scores, cm_file, f1_file, out_file):
+    np.savetxt(cm_file, confusion_matrix, delimiter=",")
+    np.savetxt(f1_file, f1_scores, delimiter=",")
+    np.savetxt(out_file, output_scores, delimiter=",")
