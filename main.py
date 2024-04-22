@@ -31,12 +31,12 @@ def main(arguments):
     test_labels = full_dataset.get_labels(test_idx)
 
     # model
-    # adnet = ADNet().to(device)
-    lenet = LeNet3D().to(device)
+    adnet = ADNet().to(device)
+    # lenet = LeNet3D().to(device)
 
-    # adam = optim.Adam(adnet.parameters(), 0.0001)
+    adam = optim.Adam(adnet.parameters(), 0.0001)
     # sgd = optim.SGD(adnet.parameters(), lr=0.0001, momentum=0.9)
-    adam2 = optim.Adam(lenet.parameters(), 0.0001)
+    # adam2 = optim.Adam(lenet.parameters(), 0.0001)
     # sgd2 = optim.SGD(lenet.parameters(), lr=0.0001, momentum=0.9)
 
     cross_entropy = nn.CrossEntropyLoss()
@@ -46,12 +46,12 @@ def main(arguments):
     batch_size = 4
 
     # training
-    train_model(lenet, adam2, cross_entropy, train_dataset, train_labels, 1, num_epochs, num_folds, device)
+    train_model(adnet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, num_folds, device)
     print("FINISHED TRAINING - STARTED TESTING")
     # lenet.load_state_dict(torch.load("model_20240421_180514_4"))
     # print("Successfully loaded the model...")
     # testing
-    avg_loss, conf_mat, f1_scores = test_model(lenet, cross_entropy, test_dataset, test_labels, 1, device)
+    avg_loss, conf_mat, f1_scores = test_model(adnet, cross_entropy, test_dataset, test_labels, batch_size, device)
     print("FINISHED TESTING")
 
     print("CONFUSION MATRIX")

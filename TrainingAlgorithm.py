@@ -95,8 +95,8 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
 
     for fold, (training_idx, val_idx) in enumerate(kf.split(dataset, train_labels)):
 
-        trainloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(training_idx))
-        valloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(val_idx))
+        trainloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(training_idx), drop_last=True)
+        valloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(val_idx), drop_last=True)
 
         v_loss = 0
         for i in range(num_epochs):
@@ -155,7 +155,7 @@ def update_confusion_matrix(confusion_matrix, prediction, labels):
 
 def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     model.train(False)
-    test_loader = DataLoader(test_dataset, batch_size)
+    test_loader = DataLoader(test_dataset, batch_size, drop_last=True)
     running_loss = 0
     confusion_matrix = np.zeros((3, 3))
     output_scores = np.array([])
