@@ -83,7 +83,7 @@ def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, sum_writer, device
 
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
-    writer = SummaryWriter("/home/damfil/Uni/FYP/PyTorchADNet/sample_logs")
+    writer = SummaryWriter("/logs")
 
     train_losses = np.array([])
     val_losses = np.array([])

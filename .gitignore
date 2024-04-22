@@ -1,5 +1,5 @@
 model*
-sample_logs
+logs
 epoch*
 .idea
 .venv
