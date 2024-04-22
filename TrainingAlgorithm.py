@@ -187,6 +187,6 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
     save_metrics_to_file(confusion_matrix, f1_scores, output_scores,
                          "PerformanceMetrics/ConfusionMatrix.csv",
                          "PerformanceMetrics/F1Scores.csv",
-                         "PerformanceMetrics/ConfusionMatrix.csv")
+                         "PerformanceMetrics/OutputScores.csv")
 
     return avg_loss, confusion_matrix, f1_scores
