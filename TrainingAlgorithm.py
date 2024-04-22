@@ -116,7 +116,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
 
         if v_loss < best_loss:
             best_loss = v_loss
-            model_path = 'model_{}_{}'.format(timestamp, fold)
+            model_path = 'Models/model_{}_{}'.format(timestamp, fold)
             save(model.state_dict(), model_path)
 
         print("--------------------------------------------------------------------------------------------\n")
