@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
-from Utils import save_metrics_to_file
+from Utils import save_metrics_to_file, save_accs_and_losses
 
 label_map = {
     0: "CN",
@@ -47,13 +47,12 @@ def train_one_epoch(model, dataloader, epoch_idx, opt_fn, loss_fn, device):
     avg_loss = running_loss / len(dataloader)
     accuracy = 100 * num_correct / len(dataloader.dataset)
 
-    # sum_writer.add_scalar('Loss/train', avg_loss, epoch_idx)
     print(f"[TRAIN]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
     return avg_loss, accuracy
 
 
-def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, device):
+def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device):
     model.train(False)
 
     running_loss = 0.
@@ -83,7 +82,7 @@ def validate_one_epoch(model, loss_fn, dataloader, epoch_idx, device):
 
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
-    # writer = SummaryWriter("/logs")
+    writer = SummaryWriter("logs/")
 
     train_losses = np.array([])
     val_losses = np.array([])
@@ -102,22 +101,28 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         for i in range(num_epochs):
             # train the model
             t_loss, t_acc = train_one_epoch(model, trainloader, i, opt_fn, loss_fn, device)
+            writer.add_scalar(f'Loss_Fold{fold}/train', t_loss, i)
+            writer.add_scalar(f'Accuracy_Fold{fold}/train', t_acc, i)
 
             # validate the model on the parameters
-            v_loss, v_acc = validate_one_epoch(model, loss_fn, valloader, i, device)
+            v_loss, v_acc = validate_one_epoch(model, valloader, loss_fn, i, device)
+            writer.add_scalar(f'Loss_Fold{fold}/val', v_loss, i)
+            writer.add_scalar(f'Accuracy_Fold{fold}/val', v_acc, i)
 
             train_losses = np.append(train_losses, t_loss)
             val_losses = np.append(val_losses, v_loss)
             train_accs = np.append(train_accs, t_acc)
             val_accs = np.append(val_accs, v_acc)
 
-            # writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, i)
-            # writer.flush()
+            writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, i)
+            writer.flush()
 
         if v_loss < best_loss:
             best_loss = v_loss
             model_path = 'Models/model_{}_{}'.format(timestamp, fold)
             save(model.state_dict(), model_path)
+
+        save_accs_and_losses(train_losses, train_accs, val_losses, val_accs)
 
         print("--------------------------------------------------------------------------------------------\n")
 
