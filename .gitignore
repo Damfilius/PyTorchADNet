@@ -1,6 +1,9 @@
 model*
-logs
+logs/*
 epoch*
 .idea
 .venv
 __pycache__
+ROCCurves/*
+PerformanceMetrics/*
+AccsAndLosses/*
