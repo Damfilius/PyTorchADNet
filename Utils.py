@@ -27,6 +27,15 @@ def get_distribution(dataset):
     return counterAD, counterCN, counterMCI
 
 
+def has_overlap(train_idx, test_idx):
+    for i in test_idx:
+        for j in train_idx:
+            if i == j:
+                return True
+
+    return False
+
+
 def save_params(parameters, arr):
     for param in parameters:
         arr.append(param)
@@ -67,3 +76,10 @@ def save_metrics_to_file(confusion_matrix, f1_scores, output_scores, cm_file, f1
     np.savetxt(cm_file, confusion_matrix, delimiter=",")
     np.savetxt(f1_file, f1_scores, delimiter=",")
     np.savetxt(out_file, output_scores, delimiter=",")
+
+
+def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs):
+    np.savetxt("AccsAndLosses/TrainLosses.csv", train_losses, delimiter=",")
+    np.savetxt("AccsAndLosses/TrainAccs.csv", train_accs, delimiter=",")
+    np.savetxt("AccsAndLosses/ValLosses.csv", val_losses, delimiter=",")
+    np.savetxt("AccsAndLosses/ValAccs.csv", val_accs, delimiter=",")
