@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import numpy as np
 from torch import equal
@@ -83,3 +84,14 @@ def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs):
     np.savetxt("AccsAndLosses/TrainAccs.csv", train_accs, delimiter=",")
     np.savetxt("AccsAndLosses/ValLosses.csv", val_losses, delimiter=",")
     np.savetxt("AccsAndLosses/ValAccs.csv", val_accs, delimiter=",")
+
+
+def empty_logs(dirname="logs/"):
+    try:
+        with os.scandir(dirname) as entries:
+            for entry in entries:
+                if entry.is_file():
+                    os.unlink(entry.path)
+        print("All files deleted successfully.")
+    except OSError:
+        print("Error occurred while deleting files.")
