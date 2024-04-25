@@ -62,7 +62,7 @@ def train_one_epoch(model, dataloader, epoch_idx, opt_fn, loss_fn, device):
     return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
 
 
-def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device, file):
+def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device):
     model.train(False)
 
     running_loss = 0.
