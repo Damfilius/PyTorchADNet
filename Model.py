@@ -72,7 +72,7 @@ class ADNet(nn.Module):
         #---------------------------- FULLY CONNECTED LAYERS ----------------------------
 
         # layer 6 and 7
-        self.fc1 = nn.Linear(256 * 3 * 3 * 3, self.n_filters['fc'], device=device)
+        self.fc1 = nn.Linear(256 * 6 * 6 * 6, self.n_filters['fc'], device=device)
         self.fc2 = nn.Linear(self.n_filters['fc'], self.n_filters['fc'], device=device)
         self.bn6 = nn.BatchNorm1d(self.n_filters['fc'], device=device)
 
@@ -94,7 +94,7 @@ class ADNet(nn.Module):
         x = self.pool5(self.bn5(fun.relu(self.conv5b(self.bn5(fun.relu(self.conv5a(x)))))))
 
         # fully connected layers
-        x = x.view(-1, 256 * 3 * 3 * 3)
+        x = x.view(-1, 256 * 6 * 6 * 6)
         x = fun.dropout(self.bn6(fun.relu(self.fc1(x))))
         x = fun.dropout(self.bn6(fun.relu(self.fc2(x))))
         x = fun.softmax(self.bn7(self.fc3(x)))
