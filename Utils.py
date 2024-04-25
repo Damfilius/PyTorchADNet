@@ -79,11 +79,11 @@ def save_metrics_to_file(confusion_matrix, f1_scores, output_scores, cm_file, f1
     np.savetxt(out_file, output_scores, delimiter=",")
 
 
-def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs):
-    np.savetxt("AccsAndLosses/TrainLosses.csv", train_losses, delimiter=",")
-    np.savetxt("AccsAndLosses/TrainAccs.csv", train_accs, delimiter=",")
-    np.savetxt("AccsAndLosses/ValLosses.csv", val_losses, delimiter=",")
-    np.savetxt("AccsAndLosses/ValAccs.csv", val_accs, delimiter=",")
+def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold):
+    np.savetxt(f"AccsAndLosses/TrainLosses{fold}.csv", train_losses, delimiter=",")
+    np.savetxt(f"AccsAndLosses/TrainAccs{fold}.csv", train_accs, delimiter=",")
+    np.savetxt(f"AccsAndLosses/ValLosses{fold}.csv", val_losses, delimiter=",")
+    np.savetxt(f"AccsAndLosses/ValAccs{fold}.csv", val_accs, delimiter=",")
 
 
 def empty_logs(dirname="logs/"):
