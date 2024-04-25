@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
 from Utils import save_metrics_to_file, save_accs_and_losses
+import time
 
 label_map = {
     0: "CN",
@@ -22,6 +23,8 @@ def train_one_epoch(model, dataloader, epoch_idx, opt_fn, loss_fn, device):
 
     running_loss = 0.
     num_correct = 0
+    epoch_start = time.time()
+    avg_time_per_batch = 0
 
     for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
         mri, labels = data[0].to(device), data[1].to(device)
@@ -31,7 +34,10 @@ def train_one_epoch(model, dataloader, epoch_idx, opt_fn, loss_fn, device):
 
         # generate the output
         mri = mri.unsqueeze(1)
+        pred_start = time.time()
         output = model(mri)
+        pred_end = time.time()
+        avg_time_per_batch += pred_end - pred_start
 
         # Compute the loss and its gradients
         loss = loss_fn(output, labels)
@@ -44,31 +50,45 @@ def train_one_epoch(model, dataloader, epoch_idx, opt_fn, loss_fn, device):
         prediction = output.argmax(dim=1, keepdim=True)
         num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
+    epoch_end = time.time()
+    epoch_elapsed = epoch_end - epoch_start
+    avg_time_per_batch /= len(dataloader)
+
     avg_loss = running_loss / len(dataloader)
     accuracy = 100 * num_correct / len(dataloader.dataset)
 
     print(f"[TRAIN]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
-    return avg_loss, accuracy
+    return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
 
 
-def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device):
+def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device, file):
     model.train(False)
 
     running_loss = 0.
     num_correct = 0
+    epoch_start = time.time()
+    avg_time_per_batch = 0
 
     for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
         mri, labels = data[0].to(device), data[1].to(device)
 
         mri = mri.unsqueeze(1)
+
+        pred_start = time.time()
         output = model(mri)
+        pred_end = time.time()
+        avg_time_per_batch += pred_end - pred_start
 
         loss = loss_fn(output, labels)
         running_loss += loss.item()
 
         prediction = output.argmax(dim=1, keepdim=True)
         num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
+
+    epoch_end = time.time()
+    epoch_elapsed = epoch_end - epoch_start
+    avg_time_per_batch /= len(dataloader)
 
     avg_loss = running_loss / len(dataloader)
     accuracy = 100 * num_correct / len(dataloader.dataset)
@@ -77,22 +97,29 @@ def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device):
 
     print(f"[VAL]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
 
-    return avg_loss, accuracy
+    return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
 
 
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
     writer = SummaryWriter("logs/")
 
-    train_losses = np.array([])
-    val_losses = np.array([])
-    train_accs = np.array([])
-    val_accs = np.array([])
+    # benchmarks
+    benchmarks_file = open("Benchmarks/training.txt", "a")
+    total_time = 0
+    train_epoch_time = np.array([])
+    val_epoch_time = np.array([])
+    pred_times = np.array([])
 
     best_loss = 999
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 
     for fold, (training_idx, val_idx) in enumerate(kf.split(dataset, train_labels)):
+        # for loss and train across time
+        train_losses = np.array([])
+        val_losses = np.array([])
+        train_accs = np.array([])
+        val_accs = np.array([])
 
         trainloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(training_idx), drop_last=True)
         valloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(val_idx), drop_last=True)
@@ -100,19 +127,20 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         v_loss = 0
         for i in range(num_epochs):
             # train the model
-            t_loss, t_acc = train_one_epoch(model, trainloader, i, opt_fn, loss_fn, device)
+            t_loss, t_acc, train_time, avg_train_pred = train_one_epoch(model, trainloader, i, opt_fn, loss_fn, device)
             writer.add_scalar(f'Loss_Fold{fold}/train', t_loss, i)
             writer.add_scalar(f'Accuracy_Fold{fold}/train', t_acc, i)
 
             # validate the model on the parameters
-            v_loss, v_acc = validate_one_epoch(model, valloader, loss_fn, i, device)
+            v_loss, v_acc, val_time, avg_val_pred = validate_one_epoch(model, valloader, loss_fn, i, device)
             writer.add_scalar(f'Loss_Fold{fold}/val', v_loss, i)
             writer.add_scalar(f'Accuracy_Fold{fold}/val', v_acc, i)
 
-            train_losses = np.append(train_losses, t_loss)
-            val_losses = np.append(val_losses, v_loss)
-            train_accs = np.append(train_accs, t_acc)
-            val_accs = np.append(val_accs, v_acc)
+            # total time - excludes all the summary writing and numpy appending
+            total_time += train_time + val_time
+            train_epoch_time = np.append(train_epoch_time, train_time)
+            val_epoch_time = np.append(val_epoch_time, val_time)
+            pred_times = np.append(pred_times, [avg_train_pred, avg_val_pred])
 
             writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, i)
             writer.flush()
@@ -122,9 +150,15 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
             model_path = 'Models/model_{}_{}'.format(timestamp, fold)
             save(model.state_dict(), model_path)
 
-        save_accs_and_losses(train_losses, train_accs, val_losses, val_accs)
-
+        save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold)
         print("--------------------------------------------------------------------------------------------\n")
+
+    avg_train_time = np.mean(train_epoch_time)
+    avg_val_time = np.mean(val_epoch_time)
+    avg_pred_time = np.mean(pred_times)
+    print(f"total time [{total_time}], avg. train/epoch [{avg_train_time}], avg. val/epoch [{avg_val_time}], avg pred. time [{avg_pred_time}]",
+          file=benchmarks_file)
+    benchmarks_file.close()
 
 
 def compute_f1_scores(confusion_matrix):
@@ -140,6 +174,13 @@ def compute_f1_scores(confusion_matrix):
 
 
 def compute_ROC_curves(output_scores, test_labels):
+    # in case that the dataloader dropped the last non-full batch
+    len_scores = len(output_scores)
+    len_labels = len(test_labels)
+
+    if len_scores < len_labels:
+        test_labels = test_labels[:len_scores]
+
     label_binarizer = LabelBinarizer().fit(test_labels)
     test_one_hot_encoded = label_binarizer.transform(test_labels)
 
