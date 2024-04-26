@@ -95,3 +95,27 @@ def empty_logs(dirname="logs/"):
         print("All files deleted successfully.")
     except OSError:
         print("Error occurred while deleting files.")
+
+
+def calculate_distribution(arr, classes):
+    dist = np.array([])
+    for cl in classes:
+        dist = np.append(dist, (arr == cl).sum())
+
+    return dist
+
+
+def print_datasets_into(labels, train_idx, test_idx):
+    tr_dist = calculate_distribution(labels[train_idx], [0, 1, 2])
+    val_dist = calculate_distribution(labels[test_idx], [0, 1, 2])
+
+    if np.intersect1d(train_idx, test_idx).size == 0:
+        print("No overlap between training and testing/valid sets...\n")
+
+    print(" CONFIRMING TESTING AND TRAINING SPLITS ")
+    print("----------------------------------------")
+    print(f" TRAIN SET LENGTH: [{len(train_idx)}]")
+    print(f" TRAIN DISTRIBUTION: {tr_dist}")
+    print(f" TEST SET LENGTH: [{len(test_idx)}]")
+    print(f" TEST DISTRIBUTION: {val_dist}")
+    print("----------------------------------------")
