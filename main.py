@@ -56,7 +56,7 @@ def main(arguments):
     cross_entropy = nn.CrossEntropyLoss()
     train_labels = full_dataset.get_labels(train_idx)
     num_epochs = args.epochs
-    num_folds = 5
+    num_folds = 6
     batch_size = 1
 
     # training
