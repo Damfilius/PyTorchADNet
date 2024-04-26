@@ -10,6 +10,7 @@ from DatasetHandler import MriDataset
 from Model import ADNet, device, LeNet3D
 from TrainingAlgorithm import train_model, train_model_2, test_model
 
+
 # labels map
 
 def main(arguments):
@@ -20,7 +21,7 @@ def main(arguments):
         args.dataset += '/'
 
     dataset_dir = args.dataset
-    full_dataset = MriDataset(dataset_dir+"labels.csv", dataset_dir, ToTensor(), None)
+    full_dataset = MriDataset(dataset_dir + "labels.csv", dataset_dir, ToTensor(), None)
 
     labels = full_dataset.get_labels()
     train_idx, test_idx = train_test_split(np.arange(len(labels)), test_size=0.2, shuffle=True, stratify=labels)
@@ -73,6 +74,7 @@ def main(arguments):
     print(np.matrix(conf_mat))
     print("F1 SCORES")
     print(f1_scores)
+
 
 # starting point
 if __name__ == '__main__':
