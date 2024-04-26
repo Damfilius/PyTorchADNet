@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from torch import save
 from torch.utils.data import DataLoader, SubsetRandomSampler, Subset
 from sklearn.model_selection import StratifiedKFold, train_test_split
@@ -18,7 +19,7 @@ label_map = {
 }
 
 
-def train_one_epoch(model, dataloader, epoch_idx, opt_fn, loss_fn, device):
+def train_one_epoch(model, dataloader, opt_fn, loss_fn, epoch_idx, device):
     model.train(True)
 
     running_loss = 0.
@@ -100,9 +101,25 @@ def validate_one_epoch(model, dataloader2, loss_fn, epoch_idx, device):
     return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
 
 
+def write_scalars(writer, t_loss, t_acc, v_loss, v_acc, fold, epoch):
+    # reporting for testing
+    writer.add_scalar(f'Loss_Fold{fold}/train', t_loss, epoch)
+    writer.add_scalar(f'Accuracy_Fold{fold}/train', t_acc, epoch)
+
+    # reporting for validation
+    writer.add_scalar(f'Loss_Fold{fold}/val', v_loss, epoch)
+    writer.add_scalar(f'Accuracy_Fold{fold}/val', v_acc, epoch)
+
+    # for the overlay graph
+    writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, epoch)
+    writer.flush()
+
+
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
+    # cross validation and saving metrics
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
     writer = SummaryWriter("logs/")
+    save(model.state_dict(), "Models/init_model")
 
     # benchmarks
     benchmarks_file = open("Benchmarks/training.txt", "a")
@@ -111,7 +128,11 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
     val_epoch_time = np.array([])
     pred_times = np.array([])
 
+    # saving the model and calculating average performance
     best_loss = 999
+    best_losses = np.array([])
+    best_accuracies = np.array([])
+    total_fold_times = np.array([])
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 
     for fold, (training_idx, val_idx) in enumerate(kf.split(dataset, train_labels)):
@@ -121,6 +142,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         train_accs = np.array([])
         val_accs = np.array([])
 
+        # preparing the dataloaders
         train_dataset = Subset(dataset, training_idx)
         val_dataset = Subset(dataset, val_idx)
         trainloader = DataLoader(train_dataset, batch_size, drop_last=True)
@@ -129,45 +151,78 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         print(f"FOLD {fold}")
         print_datasets_into(train_labels, training_idx, val_idx)
 
-        v_loss = 0
-        for i in range(num_epochs):
-            # train the model
-            t_loss, t_acc, train_time, avg_train_pred = train_one_epoch(model, trainloader, i, opt_fn, loss_fn, device)
-            writer.add_scalar(f'Loss_Fold{fold}/train', t_loss, i)
-            writer.add_scalar(f'Accuracy_Fold{fold}/train', t_acc, i)
+        # benchmarking
+        total_fold_time = 0
 
-            # validate the model on the parameters
+        # training the model
+        for i in range(num_epochs):
+            t_loss, t_acc, train_time, avg_train_pred = train_one_epoch(model, trainloader, opt_fn, loss_fn, i, device)
             v_loss, v_acc, val_time, avg_val_pred = validate_one_epoch(model, valloader, loss_fn, i, device)
-            writer.add_scalar(f'Loss_Fold{fold}/val', v_loss, i)
-            writer.add_scalar(f'Accuracy_Fold{fold}/val', v_acc, i)
+            write_scalars(writer, t_loss, t_acc, v_loss, v_acc, fold, i)
+
+            if v_loss < best_loss:
+                best_loss = v_loss
+                print("Saving the model...")
+                model_path = 'Models/model_{}'.format(timestamp)
+                save(model.state_dict(), model_path)
 
             # total time - excludes all the summary writing and numpy appending
-            total_time += train_time + val_time
+            total_fold_time += train_time + val_time
             train_epoch_time = np.append(train_epoch_time, train_time)
             val_epoch_time = np.append(val_epoch_time, val_time)
             pred_times = np.append(pred_times, [avg_train_pred, avg_val_pred])
 
-            writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, i)
-            writer.flush()
-
-        if v_loss < best_loss:
-            best_loss = v_loss
-            model_path = 'Models/model_{}_{}'.format(timestamp, fold)
-            save(model.state_dict(), model_path)
+            # add values to the accuracy and loss arrays
+            train_losses = np.append(train_losses, t_loss)
+            train_accs = np.append(train_accs, t_acc)
+            val_losses = np.append(val_losses, v_loss)
+            val_accs = np.append(val_accs, v_acc)
 
         save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold)
         print("--------------------------------------------------------------------------------------------\n")
 
+        # store the best loss recorded for a model of a specific fold
+        fold_best_loss = np.min(val_losses)
+        fold_best_acc = np.max(val_accs)
+        best_losses = np.append(best_losses, fold_best_loss)
+        best_accuracies = np.append(best_accuracies, fold_best_acc)
+
+        # benchmarking
+        total_fold_times = np.append(total_fold_times, total_fold_time)
+        total_time += total_fold_time
+
+        # resetting the model
+        model.load_state_dict(torch.load("Models/init_model"))
+
+
+    # performance
+    average_loss = np.mean(best_losses)
+    average_accuracy = np.mean(best_accuracies)
+    print(f"Losses: {best_losses}")
+    print(f"Average Loss: {average_loss}")
+    print(f"Accuracies: {best_accuracies}")
+    print(f"Average Accuracy: {average_accuracy}")
+
+    # benchmarking
+    avg_time_per_fold = np.mean(total_fold_times)
     avg_train_time = np.mean(train_epoch_time)
     avg_val_time = np.mean(val_epoch_time)
     avg_pred_time = np.mean(pred_times)
-    print(f"total time [{total_time}], avg. train/epoch [{avg_train_time}], avg. val/epoch [{avg_val_time}], avg pred. time [{avg_pred_time}]",
+
+    print(f"Benchmarking Results:\n"
+          f"Total Time: {total_time}s\n"
+          f"Average Time / Fold: {avg_time_per_fold}s\n"
+          f"Average Training Time / Epoch: {avg_train_time}s\n"
+          f"Average Validation Time / Epoch: {avg_val_time}s\n"
+          f"Average Prediction Time: {avg_pred_time}",
           file=benchmarks_file)
+
     benchmarks_file.close()
 
 
 def train_model_2(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, device):
-    train_idx, val_idx = train_test_split(np.arange(len(train_labels)), test_size=0.2, shuffle=True, stratify=train_labels)
+    train_idx, val_idx = train_test_split(np.arange(len(train_labels)), test_size=0.2, shuffle=True,
+                                          stratify=train_labels)
     train_dataset = Subset(dataset, train_idx)
     val_dataset = Subset(dataset, val_idx)
     trainloader = DataLoader(train_dataset, batch_size, drop_last=True)
@@ -176,7 +231,7 @@ def train_model_2(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num
     print_datasets_into(train_labels, train_idx, val_idx)
 
     for i in range(num_epochs):
-        train_one_epoch(model, trainloader, i, opt_fn, loss_fn, device)
+        train_one_epoch(model, trainloader, opt_fn, loss_fn, i, device)
         validate_one_epoch(model, valloader, loss_fn, i, device)
 
 
