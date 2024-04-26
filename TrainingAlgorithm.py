@@ -1,14 +1,14 @@
 import numpy as np
 from torch import save
-from torch.utils.data import DataLoader, SubsetRandomSampler
-from sklearn.model_selection import StratifiedKFold
+from torch.utils.data import DataLoader, SubsetRandomSampler, Subset
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.preprocessing import LabelBinarizer
 from sklearn import metrics
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
-from Utils import save_metrics_to_file, save_accs_and_losses
+from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into
 import time
 
 label_map = {
@@ -62,7 +62,7 @@ def train_one_epoch(model, dataloader, epoch_idx, opt_fn, loss_fn, device):
     return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
 
 
-def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device):
+def validate_one_epoch(model, dataloader2, loss_fn, epoch_idx, device):
     model.train(False)
 
     running_loss = 0.
@@ -70,7 +70,7 @@ def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device):
     epoch_start = time.time()
     avg_time_per_batch = 0
 
-    for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
+    for i, data in tqdm(enumerate(dataloader2), total=len(dataloader2)):
         mri, labels = data[0].to(device), data[1].to(device)
 
         mri = mri.unsqueeze(1)
@@ -88,10 +88,10 @@ def validate_one_epoch(model, dataloader, loss_fn, epoch_idx, device):
 
     epoch_end = time.time()
     epoch_elapsed = epoch_end - epoch_start
-    avg_time_per_batch /= len(dataloader)
+    avg_time_per_batch /= len(dataloader2)
 
-    avg_loss = running_loss / len(dataloader)
-    accuracy = 100 * num_correct / len(dataloader.dataset)
+    avg_loss = running_loss / len(dataloader2)
+    accuracy = 100 * num_correct / len(dataloader2.dataset)
 
     # sum_writer.add_scalar('Loss/val', avg_loss, epoch_idx)
 
@@ -121,8 +121,13 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         train_accs = np.array([])
         val_accs = np.array([])
 
-        trainloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(training_idx), drop_last=True)
-        valloader = DataLoader(dataset, batch_size, sampler=SubsetRandomSampler(val_idx), drop_last=True)
+        train_dataset = Subset(dataset, training_idx)
+        val_dataset = Subset(dataset, val_idx)
+        trainloader = DataLoader(train_dataset, batch_size, drop_last=True)
+        valloader = DataLoader(val_dataset, batch_size, drop_last=True)
+
+        print(f"FOLD {fold}")
+        print_datasets_into(train_labels, training_idx, val_idx)
 
         v_loss = 0
         for i in range(num_epochs):
@@ -159,6 +164,20 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
     print(f"total time [{total_time}], avg. train/epoch [{avg_train_time}], avg. val/epoch [{avg_val_time}], avg pred. time [{avg_pred_time}]",
           file=benchmarks_file)
     benchmarks_file.close()
+
+
+def train_model_2(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, device):
+    train_idx, val_idx = train_test_split(np.arange(len(train_labels)), test_size=0.2, shuffle=True, stratify=train_labels)
+    train_dataset = Subset(dataset, train_idx)
+    val_dataset = Subset(dataset, val_idx)
+    trainloader = DataLoader(train_dataset, batch_size, drop_last=True)
+    valloader = DataLoader(val_dataset, batch_size, drop_last=True)
+
+    print_datasets_into(train_labels, train_idx, val_idx)
+
+    for i in range(num_epochs):
+        train_one_epoch(model, trainloader, i, opt_fn, loss_fn, device)
+        validate_one_epoch(model, valloader, loss_fn, i, device)
 
 
 def compute_f1_scores(confusion_matrix):
