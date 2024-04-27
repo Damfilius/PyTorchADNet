@@ -1,14 +1,15 @@
 import sys
+import torch
 import numpy as np
 from torch import nn, optim
-from torch.utils.data import Subset, DataLoader
+from torch.utils.data import Subset
 from torchvision.transforms import ToTensor
 from sklearn.model_selection import train_test_split
 
 from Utils import parse_args, calculate_distribution
 from DatasetHandler import MriDataset
 from Model import ADNet, device, LeNet3D
-from TrainingAlgorithm import train_model, train_model_2, test_model
+from TrainingAlgorithm import train_model, test_model
 
 
 # labels map
@@ -60,13 +61,14 @@ def main(arguments):
     batch_size = 1
 
     # training
-    train_model(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, num_folds, device)
+    model_path = train_model(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, num_folds, device)
     # train_model_2(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, device)
 
-    print("FINISHED TRAINING - STARTED TESTING")
+    print("FINISHED TRAINING - LOADING THE MODEL AND STARTING TESTING")
     # lenet.load_state_dict(torch.load("model_20240421_180514_4"))
     # print("Successfully loaded the model...")
     # testing
+    lenet.load_state_dict(torch.load(model_path))
     avg_loss, conf_mat, f1_scores = test_model(lenet, cross_entropy, test_dataset, test_labels, batch_size, device)
     print("FINISHED TESTING")
 

@@ -116,9 +116,11 @@ def write_scalars(writer, t_loss, t_acc, v_loss, v_acc, fold, epoch):
 
 
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
-    # cross validation and saving metrics
+    # cross validation and saving metrics and model
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
     writer = SummaryWriter("logs/")
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    model_path = f"Models/LeNet_{timestamp}"
     save(model.state_dict(), "Models/init_model")
 
     # benchmarks
@@ -163,7 +165,6 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
             if v_loss < best_loss:
                 best_loss = v_loss
                 print("Saving the model...")
-                model_path = 'Models/model_{}'.format(timestamp)
                 save(model.state_dict(), model_path)
 
             # total time - excludes all the summary writing and numpy appending
@@ -218,6 +219,8 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
           file=benchmarks_file)
 
     benchmarks_file.close()
+
+    return model_path
 
 
 def train_model_2(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, device):
