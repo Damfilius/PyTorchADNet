@@ -35,52 +35,45 @@ class ADNet(nn.Module):
         #---------------------------- CONVOLUTION AND BN LAYERS ----------------------------
 
         # layer 1
-        self.conv1 = nn.Conv3d(1, self.n_filters['l1'], self.filter_size, self.stride, self.padding, device=device)
-        self.bn1 = nn.BatchNorm3d(self.n_filters['l1'], device=device)
+        self.conv1 = nn.Conv3d(1, self.n_filters['l1'], self.filter_size, self.stride, self.padding)
+        self.bn1 = nn.BatchNorm3d(self.n_filters['l1'])
         self.pool1 = nn.MaxPool3d(self.pool_size, self.pool_stride, (1, 0, 1))
 
         # layer 2
-        self.conv2 = nn.Conv3d(self.n_filters['l1'], self.n_filters['l2'], self.filter_size, self.stride, self.padding,
-                               device=device)
-        self.bn2 = nn.BatchNorm3d(self.n_filters['l2'], device=device)
+        self.conv2 = nn.Conv3d(self.n_filters['l1'], self.n_filters['l2'], self.filter_size, self.stride, self.padding)
+        self.bn2 = nn.BatchNorm3d(self.n_filters['l2'])
         self.pool2 = nn.MaxPool3d(self.pool_size, self.pool_stride, (1, 1, 0))
 
         # layer 3
-        self.conv3a = nn.Conv3d(self.n_filters['l2'], self.n_filters['l3'], self.filter_size, self.stride, self.padding,
-                                device=device)
-        self.conv3b = nn.Conv3d(self.n_filters['l3'], self.n_filters['l3'], self.filter_size, self.stride, self.padding,
-                                device=device)
-        self.bn3 = nn.BatchNorm3d(self.n_filters['l3'], device=device)
+        self.conv3a = nn.Conv3d(self.n_filters['l2'], self.n_filters['l3'], self.filter_size, self.stride, self.padding)
+        self.conv3b = nn.Conv3d(self.n_filters['l3'], self.n_filters['l3'], self.filter_size, self.stride, self.padding)
+        self.bn3 = nn.BatchNorm3d(self.n_filters['l3'])
         self.pool3 = nn.MaxPool3d(self.pool_size, self.pool_stride, (1, 0, 1))
 
         # layer 4
-        self.conv4a = nn.Conv3d(self.n_filters['l3'], self.n_filters['l4'], self.filter_size, self.stride, self.padding,
-                                device=device)
-        self.conv4b = nn.Conv3d(self.n_filters['l4'], self.n_filters['l4'], self.filter_size, self.stride, self.padding,
-                                device=device)
-        self.bn4 = nn.BatchNorm3d(self.n_filters['l4'], device=device)
+        self.conv4a = nn.Conv3d(self.n_filters['l3'], self.n_filters['l4'], self.filter_size, self.stride, self.padding)
+        self.conv4b = nn.Conv3d(self.n_filters['l4'], self.n_filters['l4'], self.filter_size, self.stride, self.padding)
+        self.bn4 = nn.BatchNorm3d(self.n_filters['l4'])
         self.pool4 = nn.MaxPool3d(self.pool_size, self.pool_stride, (1, 1, 0))
 
         # layer 5
-        self.conv5a = nn.Conv3d(self.n_filters['l4'], self.n_filters['l5'], self.filter_size, self.stride, self.padding,
-                                device=device)
-        self.conv5b = nn.Conv3d(self.n_filters['l5'], self.n_filters['l5'], self.filter_size, self.stride, self.padding,
-                                device=device)
-        self.bn5 = nn.BatchNorm3d(self.n_filters['l5'], device=device)
+        self.conv5a = nn.Conv3d(self.n_filters['l4'], self.n_filters['l5'], self.filter_size, self.stride, self.padding)
+        self.conv5b = nn.Conv3d(self.n_filters['l5'], self.n_filters['l5'], self.filter_size, self.stride, self.padding)
+        self.bn5 = nn.BatchNorm3d(self.n_filters['l5'])
         self.pool5 = nn.MaxPool3d(self.pool_size, self.pool_stride)
 
         #---------------------------- FULLY CONNECTED LAYERS ----------------------------
 
         # layer 6 and 7
-        self.fc1 = nn.Linear(256 * 6 * 6 * 6, self.n_filters['fc'], device=device)
-        self.fc2 = nn.Linear(self.n_filters['fc'], self.n_filters['fc'], device=device)
-        self.bn6 = nn.BatchNorm1d(self.n_filters['fc'], device=device)
+        self.fc1 = nn.Linear(256 * 6 * 6 * 6, self.n_filters['fc'])
+        self.fc2 = nn.Linear(self.n_filters['fc'], self.n_filters['fc'])
+        self.bn6 = nn.BatchNorm1d(self.n_filters['fc'])
 
         #---------------------------- OUTPUT LAYERS ----------------------------
 
         # layer 8
-        self.fc3 = nn.Linear(self.n_filters['fc'], 3, device=device)
-        self.bn7 = nn.BatchNorm1d(3, device=device)
+        self.fc3 = nn.Linear(self.n_filters['fc'], 3)
+        self.bn7 = nn.BatchNorm1d(3)
 
         #---------------------------- WEIGHT INIT ----------------------------
         self.init_weights()
