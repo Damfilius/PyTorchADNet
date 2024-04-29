@@ -52,21 +52,21 @@ class ADNet(nn.Module):
 
     def conv_block(self, in_channels, out_channels, pool_pad):
         return nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, self.filter_size, self.stride, self.padding),
+            nn.Conv3d(in_channels, out_channels, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
             nn.ReLU(),
             nn.BatchNorm3d(out_channels),
-            nn.MaxPool3d(self.pool_size, self.pool_stride, pool_pad)
+            nn.MaxPool3d(kernel_size=self.pool_size, stride=self.pool_stride, padding=pool_pad)
         )
 
     def double_conv_block(self, in_channels, out_channels, pool_pad):
         return nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, self.filter_size, self.stride, self.padding),
+            nn.Conv3d(in_channels, out_channels, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
             nn.ReLU(),
             nn.BatchNorm3d(out_channels),
-            nn.Conv3d(out_channels, out_channels, self.filter_size, self.stride, self.padding),
+            nn.Conv3d(out_channels, out_channels, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
             nn.ReLU(),
             nn.BatchNorm3d(out_channels),
-            nn.MaxPool3d(self.pool_size, self.pool_stride, pool_pad)
+            nn.MaxPool3d(kernel_size=self.pool_size, stride=self.pool_stride, padding=pool_pad)
         )
 
     def fc_block(self, in_features, out_features):
@@ -89,11 +89,12 @@ class ADNet(nn.Module):
             if param.ndim != 1:
                 nn.init.xavier_uniform_(param)
 
+
 class LeNet3D(nn.Module):
     def __init__(self):
         super(LeNet3D, self).__init__()
 
-        self.conv1 = nn.Conv3d(1, 6, kernel_size=(5,5,5))
+        self.conv1 = nn.Conv3d(1, 6, kernel_size=(5, 5, 5))
         self.pool = nn.MaxPool3d(2, 2)
         self.conv2 = nn.Conv3d(6, 16, kernel_size=(5, 5, 5))
         self.fc1 = nn.Linear(16 * 39 * 42 * 47, 120)
