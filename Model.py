@@ -34,7 +34,7 @@ class ADNet(nn.Module):
         #---------------------------- FULLY CONNECTED LAYERS ----------------------------
 
         self.fc1 = self.fc_block(256 * 6 * 6 * 6, 512)
-        self.fc2 = self.fc_block(256 * 6 * 6 * 6, 512)
+        self.fc2 = self.fc_block(512, 512)
         self.fc3 = self.output_layer(512, 3)
 
     def forward(self, x):
