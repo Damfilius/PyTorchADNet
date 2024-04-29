@@ -59,7 +59,6 @@ def train_one_epoch(model, dataloader, opt_fn, loss_fn, epoch_idx, device):
     accuracy = 100 * num_correct / len(dataloader.dataset)
 
     print(f"[TRAIN]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
-
     return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
 
 
@@ -94,10 +93,7 @@ def validate_one_epoch(model, dataloader2, loss_fn, epoch_idx, device):
     avg_loss = running_loss / len(dataloader2)
     accuracy = 100 * num_correct / len(dataloader2.dataset)
 
-    # sum_writer.add_scalar('Loss/val', avg_loss, epoch_idx)
-
     print(f"[VAL]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
-
     return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
 
 
@@ -132,23 +128,22 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
 
     # saving the model and calculating average performance
     best_loss = 999
-    best_losses = np.array([])
-    best_accuracies = np.array([])
+    model_losses = np.array([])
+    model_accuracies = np.array([])
     total_fold_times = np.array([])
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 
     for fold, (training_idx, val_idx) in enumerate(kf.split(dataset, train_labels)):
-        # for loss and train across time
-        train_losses = np.array([])
-        val_losses = np.array([])
-        train_accs = np.array([])
-        val_accs = np.array([])
-
         # preparing the dataloaders
         train_dataset = Subset(dataset, training_idx)
         val_dataset = Subset(dataset, val_idx)
         trainloader = DataLoader(train_dataset, batch_size, drop_last=True)
         valloader = DataLoader(val_dataset, batch_size, drop_last=True)
+
+        # for loss and train across time
+        train_losses = np.array([])
+        val_losses = np.array([])
+        train_accs = np.array([])
+        val_accs = np.array([])
 
         print(f"FOLD {fold}")
         print_datasets_into(train_labels, training_idx, val_idx)
@@ -182,11 +177,12 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold)
         print("--------------------------------------------------------------------------------------------\n")
 
-        # store the best loss recorded for a model of a specific fold
-        fold_best_loss = np.min(val_losses)
-        fold_best_acc = np.max(val_accs)
-        best_losses = np.append(best_losses, fold_best_loss)
-        best_accuracies = np.append(best_accuracies, fold_best_acc)
+        # store the best achieved loss and accuracy
+        min_loss_idx = np.argmin(val_losses)
+        fold_best_loss = val_losses[min_loss_idx]
+        corr_acc = val_accs[min_loss_idx]
+        model_losses = np.append(model_losses, fold_best_loss)
+        model_accuracies = np.append(model_accuracies, corr_acc)
 
         # benchmarking
         total_fold_times = np.append(total_fold_times, total_fold_time)
@@ -195,13 +191,12 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         # resetting the model
         model.load_state_dict(torch.load("Models/init_model"))
 
-
     # performance
-    average_loss = np.mean(best_losses)
-    average_accuracy = np.mean(best_accuracies)
-    print(f"Losses: {best_losses}")
+    average_loss = np.mean(model_losses)
+    average_accuracy = np.mean(model_accuracies)
+    print(f"Losses: {model_losses}")
     print(f"Average Loss: {average_loss}")
-    print(f"Accuracies: {best_accuracies}")
+    print(f"Accuracies: {model_accuracies}")
     print(f"Average Accuracy: {average_accuracy}")
 
     # benchmarking
@@ -211,7 +206,8 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
     avg_pred_time = np.mean(pred_times)
 
     print(f"Benchmarking Results:\n"
-          f"Total Time: {total_time}s\n"
+          f"Total Time: {total_time}s\n",
+          f"Fold Times: {total_fold_times}"
           f"Average Time / Fold: {avg_time_per_fold}s\n"
           f"Average Training Time / Epoch: {avg_train_time}s\n"
           f"Average Validation Time / Epoch: {avg_val_time}s\n"
@@ -264,7 +260,7 @@ def compute_ROC_curves(output_scores, test_labels):
     for i in range(3):
         fpr, tpr, thresholds = metrics.roc_curve(test_one_hot_encoded[:, i], output_scores[:, i])
         auc = metrics.auc(fpr, tpr)
-        display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc, estimator_name='AD estimator')
+        display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc, estimator_name=f'{label_map[i]} estimator')
         display.plot()
         plt.savefig(f"ROCCurves/{label_map[i]}_ROC_curve.png")
 
