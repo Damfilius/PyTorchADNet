@@ -25,64 +25,68 @@ class ADNet(nn.Module):
 
         #---------------------------- CONVOLUTION AND BN LAYERS ----------------------------
 
-        self.convb1 = self.conv_block(1, 32, (1, 0, 1))
-        self.convb2 = self.conv_block(32, 64, (1, 1, 0))
-        self.convb3 = self.double_conv_block(64, 128, (1, 0, 1))
-        self.convb4 = self.double_conv_block(128, 256, (1, 1, 0))
-        self.convb5 = self.double_conv_block(256, 256, 0)
-
-        #---------------------------- FULLY CONNECTED LAYERS ----------------------------
-
-        self.fc1 = self.fc_block(256 * 6 * 6 * 6, 512)
-        self.fc2 = self.fc_block(512, 512)
-        self.fc3 = self.output_layer(512, 3)
-
-    def forward(self, x):
-        # convolutions
-        x = self.convb1(x)
-        x = self.convb2(x)
-        x = self.convb3(x)
-        x = self.convb4(x)
-        x = self.convb5(x)
-        x = x.view(-1, 256 * 6 * 6 * 6)
-        x = self.fc1(x)
-        x = self.fc2(x)
-        x = self.fc3(x)
-        return x
-
-    def conv_block(self, in_channels, out_channels, pool_pad):
-        return nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
+        self.features = nn.Sequential(
+            # conv1
+            nn.Conv3d(1, 32, (3, 3, 3), padding=1),
+            nn.BatchNorm3d(32),
             nn.ReLU(),
-            nn.BatchNorm3d(out_channels),
-            nn.MaxPool3d(kernel_size=self.pool_size, stride=self.pool_stride, padding=pool_pad)
+            nn.MaxPool3d(2, stride=2, return_indices=True, padding=(1, 0, 1)),
+
+            # conv2
+            nn.Conv3d(32, 64, 3, padding=1),
+            nn.BatchNorm3d(64),
+            nn.ReLU(),
+            nn.MaxPool3d(2, stride=2, return_indices=True, padding=(1, 1, 0)),
+
+            # conv3
+            nn.Conv3d(64, 128, 3, padding=1),
+            nn.BatchNorm3d(128),
+            nn.ReLU(),
+            nn.Conv3d(128, 128, padding=(1, 0, 1)),
+            nn.BatchNorm3d(128),
+            nn.ReLU(),
+            nn.MaxPool3d(2, stride=2, return_indices=True, padding=(1, 0, 1)),
+
+            # conv4
+            nn.Conv3d(128, 256, 3, padding=1),
+            nn.BatchNorm3d(256),
+            nn.ReLU(),
+            nn.Conv3d(256, 256, 3, padding=1),
+            nn.BatchNorm3d(256),
+            nn.ReLU(),
+            nn.MaxPool3d(2, stride=2, return_indices=True, padding=(1, 1, 0)),
+
+            # conv5
+            nn.Conv3d(256, 256, 3, padding=1),
+            nn.BatchNorm3d(256),
+            nn.ReLU(),
+            nn.Conv3d(256, 256, 3, padding=1),
+            nn.BatchNorm3d(256),
+            nn.ReLU(),
+            nn.MaxPool3d(2, stride=2, return_indices=True, padding=0),
         )
 
-    def double_conv_block(self, in_channels, out_channels, pool_pad):
-        return nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
+        self.classifier = nn.Sequential(
+            nn.Linear(256, 512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.BatchNorm3d(out_channels),
-            nn.Conv3d(out_channels, out_channels, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
-            nn.ReLU(),
-            nn.BatchNorm3d(out_channels),
-            nn.MaxPool3d(kernel_size=self.pool_size, stride=self.pool_stride, padding=pool_pad)
-        )
+            nn.Dropout(),
 
-    def fc_block(self, in_features, out_features):
-        return nn.Sequential(
-            nn.Linear(in_features, out_features),
+            nn.Linear(512, 512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.BatchNorm1d(out_features),
-            nn.Dropout1d()
-        )
+            nn.Dropout(),
 
-    def output_layer(self, in_features, out_features):
-        return nn.Sequential(
-            nn.Linear(in_features, out_features),
-            nn.BatchNorm1d(out_features),
+            nn.Linear(512, 3),
+            nn.BatchNorm1d(3),
             nn.Softmax()
         )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(-1, 256 * 6 * 6 * 6)
+        x = self.classifier(x)
+        return x
 
     def init_weights(self):
         for param in self.parameters():
@@ -97,14 +101,14 @@ class LeNet3D(nn.Module):
         self.conv1 = nn.Conv3d(1, 6, kernel_size=(5, 5, 5))
         self.pool = nn.MaxPool3d(2, 2)
         self.conv2 = nn.Conv3d(6, 16, kernel_size=(5, 5, 5))
-        self.fc1 = nn.Linear(16 * 39 * 42 * 47, 120)
+        self.fc1 = nn.Linear(16 * 44 * 36 * 36, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 3)
 
     def forward(self, x):
         x = self.pool(fun.relu(self.conv1(x)))
         x = self.pool(fun.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 39 * 42 * 47)
+        x = x.view(-1, 16 * 44 * 36 * 36)
         x = fun.relu(self.fc1(x))
         x = fun.relu(self.fc2(x))
         x = self.fc3(x)
