@@ -173,7 +173,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
             val_losses = np.append(val_losses, v_loss)
             val_accs = np.append(val_accs, v_acc)
 
-        save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold)
+        save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold, timestamp)
         print("--------------------------------------------------------------------------------------------\n")
 
         # store the best achieved loss and accuracy
