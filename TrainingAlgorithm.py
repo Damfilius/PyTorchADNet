@@ -63,7 +63,7 @@ def train_one_epoch(model, dataloader, opt_fn, loss_fn, epoch_idx, device):
 
 
 def validate_one_epoch(model, dataloader2, loss_fn, epoch_idx, device):
-    model.train(False)
+    model.eval()
 
     running_loss = 0.
     num_correct = 0
@@ -111,16 +111,15 @@ def write_scalars(writer, t_loss, t_acc, v_loss, v_acc, fold, epoch):
     writer.flush()
 
 
-def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device):
+def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device, timestamp):
     # cross validation and saving metrics and model
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
     writer = SummaryWriter("logs/")
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    model_path = f"Models/LeNet_{timestamp}"
+    model_path = f"Models/model_{timestamp}"
     save(model.state_dict(), "Models/init_model")
 
     # benchmarks
-    benchmarks_file = open("Benchmarks/training.txt", "a")
+    benchmarks_file = open(f"Benchmarks/training_{timestamp}.txt", "a")
     total_time = 0
     train_epoch_time = np.array([])
     val_epoch_time = np.array([])
@@ -246,7 +245,7 @@ def compute_f1_scores(confusion_matrix):
     return f1_scores
 
 
-def compute_ROC_curves(output_scores, test_labels):
+def compute_ROC_curves(output_scores, test_labels, timestamp):
     # in case that the dataloader dropped the last non-full batch
     len_scores = len(output_scores)
     len_labels = len(test_labels)
@@ -262,7 +261,7 @@ def compute_ROC_curves(output_scores, test_labels):
         auc = metrics.auc(fpr, tpr)
         display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc, estimator_name=f'{label_map[i]} estimator')
         display.plot()
-        plt.savefig(f"ROCCurves/{label_map[i]}_ROC_curve.png")
+        plt.savefig(f"ROCCurves/{label_map[i]}_ROC_curve_{timestamp}.png")
 
 
 def update_confusion_matrix(confusion_matrix, prediction, labels):
@@ -272,7 +271,7 @@ def update_confusion_matrix(confusion_matrix, prediction, labels):
     return confusion_matrix
 
 
-def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
+def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, timestamp):
     model.train(False)
     test_loader = DataLoader(test_dataset, batch_size, drop_last=True)
     running_loss = 0
@@ -301,11 +300,11 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device):
 
     # computing the ROC curve
     output_scores = np.reshape(output_scores, (-1, 3))
-    compute_ROC_curves(output_scores, test_labels)
+    compute_ROC_curves(output_scores, test_labels, timestamp)
 
     save_metrics_to_file(confusion_matrix, f1_scores, output_scores,
-                         "PerformanceMetrics/ConfusionMatrix.csv",
-                         "PerformanceMetrics/F1Scores.csv",
-                         "PerformanceMetrics/OutputScores.csv")
+                         f"PerformanceMetrics/ConfusionMatrix_{timestamp}.csv",
+                         f"PerformanceMetrics/F1Scores.csv_{timestamp}",
+                         f"PerformanceMetrics/OutputScores_{timestamp}.csv")
 
     return avg_loss, confusion_matrix, f1_scores

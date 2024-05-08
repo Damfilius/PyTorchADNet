@@ -1,3 +1,4 @@
+import datetime
 import sys
 import torch
 import numpy as np
@@ -61,7 +62,8 @@ def main(arguments):
     batch_size = 1
 
     # training
-    model_path = train_model(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, num_folds, device)
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    model_path = train_model(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, num_folds, device, timestamp)
     # train_model_2(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, device)
 
     print("FINISHED TRAINING - LOADING THE MODEL AND STARTING TESTING")
@@ -69,7 +71,7 @@ def main(arguments):
     # print("Successfully loaded the model...")
     # testing
     lenet.load_state_dict(torch.load(model_path))
-    avg_loss, conf_mat, f1_scores = test_model(lenet, cross_entropy, test_dataset, test_labels, batch_size, device)
+    avg_loss, conf_mat, f1_scores = test_model(lenet, cross_entropy, test_dataset, test_labels, batch_size, device, timestamp)
     print("FINISHED TESTING")
 
     print("CONFUSION MATRIX")
