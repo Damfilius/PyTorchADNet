@@ -8,3 +8,7 @@ ROCCurves/*
 PerformanceMetrics/*
 AccsAndLosses/*
 *slurm*
+launch_info.txt
+LeNetResults50
+Benchmarks
+Models
