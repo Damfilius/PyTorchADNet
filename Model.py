@@ -30,13 +30,13 @@ class ADNet(nn.Module):
             nn.Conv3d(1, 32, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
             nn.BatchNorm3d(32),
             nn.ReLU(),
-            nn.MaxPool3d(2, stride=2, return_indices=True, padding=(1, 0, 1)),
+            nn.MaxPool3d(2, stride=2, padding=(1, 0, 1)),
 
             # conv2
             nn.Conv3d(32, 64, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
             nn.BatchNorm3d(64),
             nn.ReLU(),
-            nn.MaxPool3d(2, stride=2, return_indices=True, padding=(1, 1, 0)),
+            nn.MaxPool3d(2, stride=2, padding=(1, 1, 0)),
 
             # conv3
             nn.Conv3d(64, 128, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
@@ -45,7 +45,7 @@ class ADNet(nn.Module):
             nn.Conv3d(128, 128, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
             nn.BatchNorm3d(128),
             nn.ReLU(),
-            nn.MaxPool3d(2, stride=2, return_indices=True, padding=(1, 0, 1)),
+            nn.MaxPool3d(2, stride=2, padding=(1, 0, 1)),
 
             # conv4
             nn.Conv3d(128, 256, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
@@ -54,7 +54,7 @@ class ADNet(nn.Module):
             nn.Conv3d(256, 256, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
             nn.BatchNorm3d(256),
             nn.ReLU(),
-            nn.MaxPool3d(2, stride=2, return_indices=True, padding=(1, 1, 0)),
+            nn.MaxPool3d(2, stride=2, padding=(1, 1, 0)),
 
             # conv5
             nn.Conv3d(256, 256, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
@@ -63,7 +63,7 @@ class ADNet(nn.Module):
             nn.Conv3d(256, 256, kernel_size=self.filter_size, stride=self.stride, padding=self.padding),
             nn.BatchNorm3d(256),
             nn.ReLU(),
-            nn.MaxPool3d(2, stride=2, return_indices=True, padding=0),
+            nn.MaxPool3d(2, stride=2, padding=0),
         )
 
         self.classifier = nn.Sequential(
