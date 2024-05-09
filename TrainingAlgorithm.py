@@ -116,7 +116,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
     writer = SummaryWriter("logs/")
     model_path = f"Models/model_{timestamp}"
-    save(model.state_dict(), "Models/init_model")
+    save(model.state_dict(), f"Models/init_model_{timestamp}")
 
     # benchmarks
     benchmarks_file = open(f"Benchmarks/training_{timestamp}.txt", "a")
@@ -188,7 +188,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         total_time += total_fold_time
 
         # resetting the model
-        model.load_state_dict(torch.load("Models/init_model"))
+        model.load_state_dict(torch.load(f"Models/init_model_{timestamp}"))
 
     # performance
     average_loss = np.mean(model_losses)
