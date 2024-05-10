@@ -116,7 +116,7 @@ class LeNet3D(nn.Module):
 
 class LeNet3DBn(nn.Module):
     def __init__(self):
-        super(LeNet3D, self).__init__()
+        super(LeNet3DBn, self).__init__()
 
         self.conv1 = nn.Conv3d(1, 6, kernel_size=(5, 5, 5))
         self.bn1 = nn.BatchNorm3d(6)
