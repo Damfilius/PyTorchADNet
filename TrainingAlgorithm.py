@@ -111,15 +111,15 @@ def write_scalars(writer, t_loss, t_acc, v_loss, v_acc, fold, epoch):
     writer.flush()
 
 
-def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device, timestamp):
+def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device, timestamp, path):
     # cross validation and saving metrics and model
     kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
-    writer = SummaryWriter("logs/")
-    model_path = f"Models/model_{timestamp}"
-    save(model.state_dict(), f"Models/init_model_{timestamp}")
+    writer = SummaryWriter(f"{path}/logs/")
+    model_path = f"{path}/Models/model_{timestamp}"
+    save(model.state_dict(), f"{path}/Models/init_model_{timestamp}")
 
     # benchmarks
-    benchmarks_file = open(f"Benchmarks/training_{timestamp}.txt", "a")
+    benchmarks_file = open(f"{path}/Benchmarks/training_{timestamp}.txt", "a")
     total_time = 0
     train_epoch_time = np.array([])
     val_epoch_time = np.array([])
@@ -145,7 +145,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         val_accs = np.array([])
 
         print(f"FOLD {fold}")
-        print_datasets_into(train_labels, training_idx, val_idx)
+        print_datasets_into(train_labels, training_idx, val_idx, is_valid=True)
 
         # benchmarking
         total_fold_time = 0
@@ -173,7 +173,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
             val_losses = np.append(val_losses, v_loss)
             val_accs = np.append(val_accs, v_acc)
 
-        save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold, timestamp)
+        save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold, timestamp, path)
         print("--------------------------------------------------------------------------------------------\n")
 
         # store the best achieved loss and accuracy
@@ -188,7 +188,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
         total_time += total_fold_time
 
         # resetting the model
-        model.load_state_dict(torch.load(f"Models/init_model_{timestamp}"))
+        model.load_state_dict(torch.load(f"{path}/Models/init_model_{timestamp}"))
 
     # performance
     average_loss = np.mean(model_losses)
@@ -218,21 +218,6 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
     return model_path
 
 
-def train_model_2(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, device):
-    train_idx, val_idx = train_test_split(np.arange(len(train_labels)), test_size=0.2, shuffle=True,
-                                          stratify=train_labels)
-    train_dataset = Subset(dataset, train_idx)
-    val_dataset = Subset(dataset, val_idx)
-    trainloader = DataLoader(train_dataset, batch_size, drop_last=True)
-    valloader = DataLoader(val_dataset, batch_size, drop_last=True)
-
-    print_datasets_into(train_labels, train_idx, val_idx)
-
-    for i in range(num_epochs):
-        train_one_epoch(model, trainloader, opt_fn, loss_fn, i, device)
-        validate_one_epoch(model, valloader, loss_fn, i, device)
-
-
 def compute_f1_scores(confusion_matrix):
     sum_horiz = np.sum(confusion_matrix, axis=1)
     sum_vert = np.sum(confusion_matrix, axis=0)
@@ -245,7 +230,7 @@ def compute_f1_scores(confusion_matrix):
     return f1_scores
 
 
-def compute_ROC_curves(output_scores, test_labels, timestamp):
+def compute_ROC_curves(output_scores, test_labels, timestamp, path):
     # in case that the dataloader dropped the last non-full batch
     len_scores = len(output_scores)
     len_labels = len(test_labels)
@@ -261,7 +246,7 @@ def compute_ROC_curves(output_scores, test_labels, timestamp):
         auc = metrics.auc(fpr, tpr)
         display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc, estimator_name=f'{label_map[i]} estimator')
         display.plot()
-        plt.savefig(f"ROCCurves/{label_map[i]}_ROC_curve_{timestamp}.png")
+        plt.savefig(f"{path}/ROCCurves/{label_map[i]}_ROC_curve_{timestamp}.png")
 
 
 def update_confusion_matrix(confusion_matrix, prediction, labels):
@@ -271,7 +256,11 @@ def update_confusion_matrix(confusion_matrix, prediction, labels):
     return confusion_matrix
 
 
-def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, timestamp):
+def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, timestamp, path):
+    # remove the last character if it is a slash
+    if path[-1] == '/':
+        path = path[:-1]
+
     model.train(False)
     test_loader = DataLoader(test_dataset, batch_size, drop_last=True)
     running_loss = 0
@@ -300,11 +289,11 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, ti
 
     # computing the ROC curve
     output_scores = np.reshape(output_scores, (-1, 3))
-    compute_ROC_curves(output_scores, test_labels, timestamp)
+    compute_ROC_curves(output_scores, test_labels, timestamp, path)
 
     save_metrics_to_file(confusion_matrix, f1_scores, output_scores,
-                         f"PerformanceMetrics/ConfusionMatrix_{timestamp}.csv",
-                         f"PerformanceMetrics/F1Scores.csv_{timestamp}",
-                         f"PerformanceMetrics/OutputScores_{timestamp}.csv")
+                         f"{path}/PerformanceMetrics/ConfusionMatrix_{timestamp}.csv",
+                         f"{path}/PerformanceMetrics/F1Scores_{timestamp}.csv",
+                         f"{path}/PerformanceMetrics/OutputScores_{timestamp}.csv")
 
     return avg_loss, confusion_matrix, f1_scores

@@ -7,7 +7,7 @@ from torch.utils.data import Subset
 from torchvision.transforms import ToTensor
 from sklearn.model_selection import train_test_split
 
-from Utils import parse_args, calculate_distribution
+from Utils import parse_args, calculate_distribution, prepare_directory
 from DatasetHandler import MriDataset
 from Model import ADNet, device, LeNet3D
 from TrainingAlgorithm import train_model, test_model
@@ -18,9 +18,13 @@ from TrainingAlgorithm import train_model, test_model
 def main(arguments):
     args = parse_args(arguments)
 
-    # dataset
+    # dataset - ensuring that the directory has a trailing /
     if args.dataset[-1] != '/':
         args.dataset += '/'
+
+    # model path - ensuring that the directory does not have a trailing /
+    if args.model_path[-1] == '/':
+        args.model_path = args.model_path[:-1]
 
     dataset_dir = args.dataset
     full_dataset = MriDataset(dataset_dir + "labels.csv", dataset_dir, ToTensor(), None)
@@ -50,11 +54,7 @@ def main(arguments):
     # adnet = ADNet().to(device)
     lenet = LeNet3D().to(device)
 
-    # adam = optim.Adam(adnet.parameters(), 0.0001)
-    # sgd = optim.SGD(adnet.parameters(), lr=0.0001, momentum=0.9)
     adam = optim.Adam(lenet.parameters(), 0.0001)
-    # sgd2 = optim.SGD(lenet.parameters(), lr=0.0001, momentum=0.9)
-
     cross_entropy = nn.CrossEntropyLoss()
     train_labels = full_dataset.get_labels(train_idx)
     num_epochs = args.epochs
@@ -62,16 +62,13 @@ def main(arguments):
     batch_size = 1
 
     # training
+    prepare_directory(args.model_path)
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    model_path = train_model(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, num_folds, device, timestamp)
-    # train_model_2(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, device)
+    model_weights = train_model(lenet, adam, cross_entropy, train_dataset, train_labels, batch_size, num_epochs, num_folds, device, timestamp, args.model_path)
 
     print("FINISHED TRAINING - LOADING THE MODEL AND STARTING TESTING")
-    # lenet.load_state_dict(torch.load("model_20240421_180514_4"))
-    # print("Successfully loaded the model...")
-    # testing
-    lenet.load_state_dict(torch.load(model_path))
-    avg_loss, conf_mat, f1_scores = test_model(lenet, cross_entropy, test_dataset, test_labels, batch_size, device, timestamp)
+    lenet.load_state_dict(torch.load(model_weights))
+    avg_loss, conf_mat, f1_scores = test_model(lenet, cross_entropy, test_dataset, test_labels, batch_size, device, timestamp, args.model_path)
     print("FINISHED TESTING")
 
     print("CONFUSION MATRIX")

@@ -66,10 +66,11 @@ def get_length(parameters):
 
 
 def parse_args(arguments):
-    parser = argparse.ArgumentParser(prog="ADNet Model",
+    parser = argparse.ArgumentParser(prog="LeNet3D Model",
                                      description="Model Training and Diagnosis of AD through MRI Scans")
     parser.add_argument('dataset')
-    parser.add_argument('-e', '--epochs', type=int, default=150)
+    parser.add_argument('model_path')
+    parser.add_argument('-e', '--epochs', type=int, default=50)
     args = parser.parse_args(arguments)
     return args
 
@@ -80,12 +81,31 @@ def save_metrics_to_file(confusion_matrix, f1_scores, output_scores, cm_file, f1
     np.savetxt(out_file, output_scores, delimiter=",")
 
 
-def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold, timestamp):
-    np.savetxt(f"AccsAndLosses/TrainLosses{fold}_{timestamp}.csv", train_losses, delimiter=",")
-    np.savetxt(f"AccsAndLosses/TrainAccs{fold}_{timestamp}.csv", train_accs, delimiter=",")
-    np.savetxt(f"AccsAndLosses/ValLosses{fold}_{timestamp}.csv", val_losses, delimiter=",")
-    np.savetxt(f"AccsAndLosses/ValAccs{fold}_{timestamp}.csv", val_accs, delimiter=",")
+def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold, timestamp, path):
+    np.savetxt(f"{path}/AccsAndLosses/TrainLosses{fold}_{timestamp}.csv", train_losses, delimiter=",")
+    np.savetxt(f"{path}/AccsAndLosses/TrainAccs{fold}_{timestamp}.csv", train_accs, delimiter=",")
+    np.savetxt(f"{path}/AccsAndLosses/ValLosses{fold}_{timestamp}.csv", val_losses, delimiter=",")
+    np.savetxt(f"{path}/AccsAndLosses/ValAccs{fold}_{timestamp}.csv", val_accs, delimiter=",")
 
+
+def prepare_directory(directory_path):
+    if not os.path.isdir(f"{directory_path}/AccsAndLosses"):
+        os.makedirs(f"{directory_path}/AccsAndLosses")
+
+    if not os.path.isdir(f"{directory_path}/Benchmarks"):
+        os.makedirs(f"{directory_path}/Benchmarks")
+
+    if not os.path.isdir(f"{directory_path}/logs"):
+        os.makedirs(f"{directory_path}/logs")
+
+    if not os.path.isdir(f"{directory_path}/Models"):
+        os.makedirs(f"{directory_path}/Models")
+
+    if not os.path.isdir(f"{directory_path}/PerformanceMetrics"):
+        os.makedirs(f"{directory_path}/PerformanceMetrics")
+
+    if not os.path.isdir(f"{directory_path}/ROCCurves"):
+        os.makedirs(f"{directory_path}/ROCCurves")
 
 def empty_logs(dirname="logs/"):
     try:
@@ -106,7 +126,9 @@ def calculate_distribution(arr, classes):
     return dist
 
 
-def print_datasets_into(labels, train_idx, test_idx):
+def print_datasets_into(labels, train_idx, test_idx, is_valid=False):
+    eval_set = "VALIDATION" if is_valid else "TEST"
+
     tr_dist = calculate_distribution(labels[train_idx], [0, 1, 2])
     val_dist = calculate_distribution(labels[test_idx], [0, 1, 2])
 
@@ -116,7 +138,7 @@ def print_datasets_into(labels, train_idx, test_idx):
     print(" CONFIRMING TESTING AND TRAINING SPLITS ")
     print("----------------------------------------")
     print(f" TRAIN SET LENGTH: [{len(train_idx)}]")
-    print(f" TRAIN DISTRIBUTION: {tr_dist}")
-    print(f" TEST SET LENGTH: [{len(test_idx)}]")
-    print(f" TEST DISTRIBUTION: {val_dist}")
+    print(f" TRAIN SET DISTRIBUTION: {tr_dist}")
+    print(f" {eval_set} SET LENGTH: [{len(test_idx)}]")
+    print(f" {eval_set} SET DISTRIBUTION: {val_dist}")
     print("----------------------------------------")
