@@ -142,3 +142,9 @@ def print_datasets_into(labels, train_idx, test_idx, is_valid=False):
     print(f" {eval_set} SET LENGTH: [{len(test_idx)}]")
     print(f" {eval_set} SET DISTRIBUTION: {val_dist}")
     print("----------------------------------------")
+
+def create_dir(path_to_dir):
+    if os.path.isdir(path_to_dir):
+        return
+    
+    os.mkdir(path_to_dir)

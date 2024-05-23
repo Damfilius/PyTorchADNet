@@ -9,6 +9,9 @@ from pathlib import Path
 from tqdm import tqdm
 import nibabel as nib
 from scipy.ndimage import zoom
+import shutil
+import subprocess
+from Utils import create_dir
 
 
 def bet_and_reg(output_dir, input_dir, ref_file):
@@ -317,6 +320,103 @@ def get_mean_dimensions(in_dir):
 
     return (mean_lens[0], mean_lens[1], mean_lens[2])
 
+# wrapper for the run_first_all function since the original wrapper doesn't work
+def run_first_all_bet(input, output, report, is_brain=False):
+    command = [
+        'run_first_all',
+        '-i', input,
+        '-o', output
+    ]
+
+    if is_brain:
+        command.append('-b')
+
+    try:
+        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print("Command executed successfully.")
+        print("Output:", result.stdout.decode(), file=report)
+        print("Errors:", result.stderr.decode(), file=report)
+    except subprocess.CalledProcessError as e:
+        print("Error executing command:")
+        print("Output:", e.stdout.decode(), file=report)
+        print("Errors:", e.stderr.decode(), file=report)
+
+
+
+def perform_segmentations(in_dir, out_dir, report, is_brain=False):
+    scans = os.listdir(in_dir)
+    for scan in tqdm(scans, total=len(scans)):
+        if ".nii" not in scan:
+            continue
+
+        # prepare the arguments
+        # perform the segmentation
+        in_scan = os.path.join(in_dir, scan)
+        scan_no_ext = Path(Path(scan).stem).stem
+        out_seg = os.path.join(out_dir, scan_no_ext)
+        run_first_all_bet(in_scan, out_seg, report, is_brain)
+
+    # remove redundant files
+    seg_items = os.listdir(out_dir)
+    for seg_item in seg_items:
+        if "firstseg" in seg_item:
+            continue
+
+        item_to_remove = os.path.join(out_dir, seg_item)
+        if os.path.isdir(item_to_remove):
+            shutil.rmtree(item_to_remove)
+        else:
+            os.remove(item_to_remove)
+
+
+def get_mri_from_seg(seg_file):
+    parts = seg_file.split('_')
+    mri_name = f"{parts[0]}_{parts[1]}.nii.gz"
+    return mri_name
+
+
+def get_roi(file, growth_factor):
+    stats = fslstats(file).w.run()
+    lens = stats[1:6:2]
+    min_vals = stats[0:5:2]
+
+    if growth_factor > 1:
+        new_lens = increase_volume(lens, growth_factor)
+        expand_factors = (new_lens - lens) / 2
+        min_vals = min_vals - expand_factors
+        lens = new_lens
+
+    return min_vals, lens
+
+def get_roi_volumes_from_segs(seg_dir, mri_dir, out_dir, growth_factor):
+    seg_files = os.listdir(seg_dir)
+    mri_files = os.listdir(mri_dir)
+
+    for seg_file in tqdm(seg_files, total=len(seg_files)):
+        if not seg_file.endswith(".nii.gz"):
+            continue
+
+        full_seg_file = os.path.join(seg_dir, seg_file)
+        min_vals, lens = get_roi(full_seg_file, growth_factor)
+
+        found = False
+        mri_file = get_mri_from_seg(seg_file)
+        for mri in mri_files:
+            if mri == mri_file:
+                found = True
+                break
+
+        if not found:
+            continue
+
+        full_mri_file = os.path.join(mri_dir, mri_file)
+        out_volume = os.path.join(out_dir, mri_file)
+        # extract roi from mri file
+        fslroi(full_mri_file, out_volume, min_vals[0], lens[0], min_vals[1], lens[1], min_vals[2], lens[2])
+        
+
+
+
 
 def preprocess_mris(in_dir, out_dir, ref_file, mat_dir):
     """
@@ -325,13 +425,10 @@ def preprocess_mris(in_dir, out_dir, ref_file, mat_dir):
     """
     # make the brain and registrations directories
     brain_dir=f"{in_dir}/brain_extractions"
+    create_dir(brain_dir)
+
     reg_dir=f"{in_dir}/registered_brains"
-
-    if not os.path.isdir(brain_dir):
-        os.mkdir(brain_dir)
-
-    if not os.path.isdir(reg_dir):
-        os.mkdir(reg_dir)
+    create_dir(reg_dir)
 
     flirt_params = {
         'omat': mat_dir,
@@ -358,25 +455,45 @@ def preprocess_mris(in_dir, out_dir, ref_file, mat_dir):
     mean_dimensions = get_mean_dimensions(reg_dir) 
 
     exact_roi_dir = f"{in_dir}/exact_roi"
+    create_dir(exact_roi_dir)
     mean_roi_dir = f"{in_dir}/mean_roi_reg_brains"
+    create_dir(mean_roi_dir)
     resampled_dir = f"{in_dir}/resampled_reg_brains"
-
-    if not os.path.isdir(exact_roi_dir):
-        os.mkdir(exact_roi_dir)
-
-    if not os.path.isdir(mean_roi_dir):
-        os.mkdir(mean_roi_dir)
-
-    if not os.path.isdir(resampled_dir):
-        os.mkdir(resampled_dir)
+    create_dir(resampled_dir)
 
     # extract exact rois and resample them to mean dimensions
     extract_exact_roi(reg_dir, exact_roi_dir)    
     resample_mris(exact_roi_dir, resampled_dir, mean_dimensions)
-    os.removedirs(exact_roi_dir)
+    shutil.rmtree(exact_roi_dir)
 
     # straight away extract mean dimensions as ROIs
     extract_rois(reg_dir, mean_roi_dir, mean_dimensions)
 
+    # starting segmentations
+    seg_dir = f"{in_dir}/seg_dir"
+    create_dir(seg_dir)
+    
+    report_file = open(f"{in_dir}/seg_report.txt", "w")
+    perform_segmentations(brain_dir, seg_dir, report_file, is_brain=True)
+
+    seg_files = os.listdir(seg_dir)
+    brain_files = os.listdir(brain_dir)
+    if len(seg_files) < len(brain_files):
+        print("WARNING - Not all brains were segmented successfully - check the report file for more details")
+
+    # perform volume segmentations
+    subcort_vol_dir = f"{in_dir}/SegROIVolumes"
+    create_dir(subcort_vol_dir)
+    subcort_vol_dir_10 = f"{in_dir}/SegROIVolumes10"
+    create_dir(subcort_vol_dir)
+    subcort_vol_dir_20 = f"{in_dir}/SegROIVolumes20"
+    create_dir(subcort_vol_dir)
+    subcort_vol_dir_30 = f"{in_dir}/SegROIVolumes30"
+    create_dir(subcort_vol_dir)
+
+
+    extract_roi_perfect(seg_files, brain_dir, subcort_vol_dir)
+
+    
 
 # if __name__ == '__main__':
