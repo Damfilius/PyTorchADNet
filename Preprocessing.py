@@ -246,7 +246,7 @@ def resample_mris(in_dir, out_dir, target_shape):
 
 
 def extract_exact_roi(in_dir, out_dir):
-    sum_lens = np.array([])
+    sum_lens = np.array([0.0, 0.0, 0.0])
     files = os.listdir(in_dir)
 
     for file in tqdm(files, total=len(files)):
@@ -258,10 +258,10 @@ def extract_exact_roi(in_dir, out_dir):
         x_start, x_size, y_start, y_size, z_start, z_size, t0, t1 = stats
         sum_lens += [x_size, y_size, z_size]
         out_file = os.path.join(out_dir, file)
-        fslroi(in_file, out_file, x_start, x_size, y_start, y_size, z_start, z_size, t0, t1)
+        fslroi(in_file, out_file, x_start, x_size, y_start, y_size, z_start, z_size)
 
     num_files = len(files)
-    mean_dimensions = sum_lens / num_files
+    mean_dimensions = np.ceil(sum_lens / num_files)
     return (mean_dimensions[0], mean_dimensions[1], mean_dimensions[2])
 
 
@@ -316,7 +316,7 @@ def run_first_all_bet(input, output, report, is_brain=False):
 
     try:
         result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print("Command executed successfully.")
+        print(f"Segmentation on {input} performed successfully...", file=report)
         print("Output:", result.stdout.decode(), file=report)
         print("Errors:", result.stderr.decode(), file=report)
     except subprocess.CalledProcessError as e:
@@ -374,6 +374,7 @@ def get_roi(file, growth_factor):
 def get_roi_volumes_from_segs(seg_dir, mri_dir, out_dir, growth_factor=1):
     seg_files = os.listdir(seg_dir)
     mri_files = os.listdir(mri_dir)
+    sum_lens = np.array([0.0, 0.0, 0.0])
 
     for seg_file in tqdm(seg_files, total=len(seg_files)):
         if not seg_file.endswith(".nii.gz"):
@@ -381,6 +382,7 @@ def get_roi_volumes_from_segs(seg_dir, mri_dir, out_dir, growth_factor=1):
 
         full_seg_file = os.path.join(seg_dir, seg_file)
         min_vals, lens = get_roi(full_seg_file, growth_factor)
+        sum_lens += lens
 
         found = False
         mri_file = get_mri_from_seg(seg_file)
@@ -390,17 +392,21 @@ def get_roi_volumes_from_segs(seg_dir, mri_dir, out_dir, growth_factor=1):
                 break
 
         if not found:
+            print(f"Could not find file {mri_file} in directory {mri_dir}")
             continue
 
         # extract roi from mri file
         full_mri_file = os.path.join(mri_dir, mri_file)
         out_volume = os.path.join(out_dir, mri_file)
         fslroi(full_mri_file, out_volume, min_vals[0], lens[0], min_vals[1], lens[1], min_vals[2], lens[2])
+
+    mean_dimensions = np.ceil(sum_lens / len(seg_files))
+    return (mean_dimensions[0], mean_dimensions[1], mean_dimensions[2])
         
 
 def bet_and_reg(in_dir, bet_out_dir, reg_out_dir, mat_dir, ref_file):
     flirt_params = {
-        'omat': mat_dir,
+        'omat': f"{mat_dir}/outmat.mat",
         'out': "",
         'dof': 12
     }
@@ -420,6 +426,21 @@ def bet_and_reg(in_dir, bet_out_dir, reg_out_dir, mat_dir, ref_file):
         flirt_params["out"] = out_flirt
         out_brain = f"{out_brain}.gz"
         flirt(out_brain, ref_file, **flirt_params)
+
+
+def remove_seg_waste(brain_dir):
+    files = os.listdir(brain_dir)
+    num_brains = 0
+
+    for file in files:
+        if "std_sub" not in file:
+            num_brains += 1
+            continue
+
+        file_to_rm = os.path.join(brain_dir, file)
+        os.remove(file_to_rm)
+
+    return num_brains
 
 
 def preprocess_mris(in_dir, out_dir, ref_file):
@@ -450,6 +471,7 @@ def preprocess_mris(in_dir, out_dir, ref_file):
 
     print("extracting rois and resampling...")
     mean_dimensions = extract_exact_roi(reg_dir, exact_roi_dir)
+    print(f"mean dimensions: {mean_dimensions}")
     resample_mris(exact_roi_dir, resampled_dir, mean_dimensions)
     shutil.rmtree(exact_roi_dir)
 
@@ -461,29 +483,52 @@ def preprocess_mris(in_dir, out_dir, ref_file):
     seg_dir = f"{out_dir}/seg_dir"
     create_dir(seg_dir)
     
+    print("segmenting brains...")
     report_file = open(f"{out_dir}/seg_report.txt", "w")
     perform_segmentations(brain_dir, seg_dir, report_file, is_brain=True)
 
     seg_files = os.listdir(seg_dir)
-    brain_files = os.listdir(brain_dir)
-    if len(seg_files) < len(brain_files):
+    num_brains = remove_seg_waste(brain_dir)
+    if len(seg_files) < num_brains:
         print("WARNING - Not all brains were segmented successfully - check the report file for more details")
 
     # perform volume segmentations
     subcort_vol_dir = f"{out_dir}/SegROIVolumes"
     create_dir(subcort_vol_dir)
     subcort_vol_dir_10 = f"{out_dir}/SegROIVolumes10"
-    create_dir(subcort_vol_dir)
+    create_dir(subcort_vol_dir_10)
     subcort_vol_dir_20 = f"{out_dir}/SegROIVolumes20"
-    create_dir(subcort_vol_dir)
+    create_dir(subcort_vol_dir_20)
     subcort_vol_dir_30 = f"{out_dir}/SegROIVolumes30"
-    create_dir(subcort_vol_dir)
+    create_dir(subcort_vol_dir_30)
 
+    print("extracting segmentation area...")
+    mean_dimensions = get_roi_volumes_from_segs(seg_dir, brain_dir, subcort_vol_dir)
+    print("extracting segmentation area with 10% increased volume...")
+    mean_dimensions_10 = get_roi_volumes_from_segs(seg_dir, brain_dir, subcort_vol_dir_10, growth_factor=1.1)
+    print("extracting segmentation area with 20% increased volume...")
+    mean_dimensions_20 = get_roi_volumes_from_segs(seg_dir, brain_dir, subcort_vol_dir_20, growth_factor=1.2)
+    print("extracting segmentation area with 30% increased volume...")
+    mean_dimensions_30 = get_roi_volumes_from_segs(seg_dir, brain_dir, subcort_vol_dir_30, growth_factor=1.3)
 
-    get_roi_volumes_from_segs(seg_dir, brain_dir, subcort_vol_dir)
-    get_roi_volumes_from_segs(seg_dir, brain_dir, subcort_vol_dir_10, growth_factor=1.1)
-    get_roi_volumes_from_segs(seg_dir, brain_dir, subcort_vol_dir_20, growth_factor=1.2)
-    get_roi_volumes_from_segs(seg_dir, brain_dir, subcort_vol_dir_30, growth_factor=1.3)
+    # resampling the extracted sub-volumes
+    subcort_dir = f"{out_dir}/SubCortVol"
+    create_dir(subcort_dir)
+    subcort_dir_10 = f"{out_dir}/SubCortVol10"
+    create_dir(subcort_dir_10)
+    subcort_dir_20 = f"{out_dir}/SubCortVol20"
+    create_dir(subcort_dir_20)
+    subcort_dir_30 = f"{out_dir}/SubCortVol30"
+    create_dir(subcort_dir_30)
+
+    print("Resampling ROIs...")
+    resample_mris(subcort_vol_dir, subcort_dir, mean_dimensions)
+    print("Resampling ROIs with 10% increased volume...")
+    resample_mris(subcort_vol_dir_10, subcort_dir_10, mean_dimensions_10)
+    print("Resampling ROIs with 20% increased volume...")
+    resample_mris(subcort_vol_dir_20, subcort_dir_20, mean_dimensions_20)
+    print("Resampling ROIs with 30% increased volume...")
+    resample_mris(subcort_vol_dir_30, subcort_dir_30, mean_dimensions_30)
 
     
 
