@@ -306,6 +306,10 @@ def get_mean_dimensions(in_dir):
 # wrapper for the run_first_all function since the original wrapper doesn't work
 def run_first_all_bet(input, output, report, is_brain=False):
     command = [
+        'timeout',
+        '-s',
+        'SIGKILL',
+        '10m',
         'run_first_all',
         '-i', input,
         '-o', output
@@ -523,12 +527,19 @@ def preprocess_mris(in_dir, out_dir, ref_file):
 
     print("Resampling ROIs...")
     resample_mris(subcort_vol_dir, subcort_dir, mean_dimensions)
+    shutil.rmtree(subcort_vol_dir)
+
     print("Resampling ROIs with 10% increased volume...")
     resample_mris(subcort_vol_dir_10, subcort_dir_10, mean_dimensions_10)
+    shutil.rmtree(subcort_vol_dir_10)
+
     print("Resampling ROIs with 20% increased volume...")
     resample_mris(subcort_vol_dir_20, subcort_dir_20, mean_dimensions_20)
+    shutil.rmtree(subcort_vol_dir_20)
+
     print("Resampling ROIs with 30% increased volume...")
     resample_mris(subcort_vol_dir_30, subcort_dir_30, mean_dimensions_30)
+    shutil.rmtree(subcort_vol_dir_30)
 
     
 
