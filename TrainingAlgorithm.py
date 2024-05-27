@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch import save
-from torch.utils.data import DataLoader, SubsetRandomSampler, Subset
+from torch.utils.data import DataLoader, SubsetRandomSampler, Subset, ConcatDataset
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.preprocessing import LabelBinarizer
 from sklearn import metrics
@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
-from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into
+from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into, save_train_accs_and_losses
 import time
 
 label_map = {
@@ -109,6 +109,10 @@ def write_scalars(writer, t_loss, t_acc, v_loss, v_acc, fold, epoch):
     # for the overlay graph
     writer.add_scalars('Training vs. Validation Loss', {'Training': t_loss, 'Validation': v_loss}, epoch)
     writer.flush()
+
+def write_training(writer, t_loss, t_acc, fold, epoch):
+    writer.add_scalar(f'Loss_Fold{fold}/train', t_loss, epoch)
+    writer.add_scalar(f'Accuracy_Fold{fold}/train', t_acc, epoch)
 
 
 def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_epochs, num_folds, device, timestamp, path):
@@ -218,6 +222,91 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
     return model_path
 
 
+def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device, timestamp, path):
+    # logging and model
+    writer = SummaryWriter(f"{path}/logs/")
+    save(model.state_dict(), f"{path}/Models/init_model_{timestamp}")
+    model_path = f"{path}/Models/model_{timestamp}"
+
+    # benchmarks
+    benchmarks_file = open(f"{path}/Benchmarks/training_{timestamp}.txt", "a")
+    train_epoch_time = np.array([])
+    pred_times = np.array([])
+
+    # saving the model and calculating average performance
+    best_accuracy = 0
+    test_losses = np.array([])
+    test_accuracies = np.array([])
+
+    for i in range(len(folds)):
+        # preparing the training and testing dataset
+        test_fold = folds[i]
+        training_folds = np.delete(folds, i)
+        training_dataset = ConcatDataset(training_folds)
+        train_loader = DataLoader(training_dataset, batch_size, drop_last=True)
+
+        # training performance
+        train_accuracies = np.array([])
+        train_losses = np.array([])
+
+        # train the model
+        for e in range(num_epochs):
+            t_loss, t_acc, train_time, avg_pred_time = train_one_epoch(model, train_loader, opt_fn, loss_fn, e, device)
+            write_training(writer, t_loss, t_acc, i, e)
+
+            # benchmarks
+            train_epoch_time = np.append(train_epoch_time, train_time)
+            pred_times = np.append(pred_times, avg_pred_time)
+
+            # performance
+            train_losses = np.append(train_losses, t_loss)
+            train_accuracies = np.append(train_accuracies, t_acc)
+
+        # test the model
+        test_labels = test_fold.get_labels()
+        test_loss, test_accuracy, conf_matrix, f1_scores = test_model(model, loss_fn, test_fold, test_labels, batch_size, device, i, timestamp, path)
+
+        # saving the model
+        if test_accuracy > best_accuracy:
+            print("Saving the model...")
+            best_accuracy = test_accuracy
+            save(model.state_dict(), model_path)
+
+        # performance metrics
+        test_losses = np.append(test_losses, test_loss)
+        test_accuracies = np.append(test_accuracies, test_accuracy)
+
+        save_train_accs_and_losses(train_losses, train_accuracies, i, timestamp, path)
+        print("--------------------------------------------------------------------------------------------\n")
+
+        # resetting the model
+        model.load_state_dict(torch.load(f"{path}/Models/init_model_{timestamp}"))
+
+    # performance
+    average_test_loss = np.mean(test_losses)
+    average_test_accuracy = np.mean(test_accuracies)
+    print(f"Losses: {test_losses}")
+    print(f"Average Loss: {average_test_loss}")
+    print(f"Accuracies: {test_accuracies}")
+    print(f"Average Accuracy: {average_test_accuracy}")
+
+    # benchmarking
+    total_time = np.sum(train_epoch_time)
+    average_epoch_time = np.mean(average_epoch_time)
+    avg_time_per_fold = total_time / 10
+    avg_pred_time = np.mean(pred_times)
+
+    print(f"Benchmarking Results:\n"
+          f"Total Time: {total_time}s\n",
+          f"Average Time / Fold: {avg_time_per_fold}s\n"
+          f"Average Training Time / Epoch: {average_epoch_time}s\n"
+          f"Average Prediction Time: {avg_pred_time}",
+          file=benchmarks_file)
+
+    benchmarks_file.close()
+
+    return model_path
+
 def compute_f1_scores(confusion_matrix):
     sum_horiz = np.sum(confusion_matrix, axis=1)
     sum_vert = np.sum(confusion_matrix, axis=0)
@@ -230,7 +319,7 @@ def compute_f1_scores(confusion_matrix):
     return f1_scores
 
 
-def compute_ROC_curves(output_scores, test_labels, timestamp, path):
+def compute_ROC_curves(output_scores, test_labels, fold, timestamp, path):
     # in case that the dataloader dropped the last non-full batch
     len_scores = len(output_scores)
     len_labels = len(test_labels)
@@ -244,9 +333,9 @@ def compute_ROC_curves(output_scores, test_labels, timestamp, path):
     for i in range(3):
         fpr, tpr, thresholds = metrics.roc_curve(test_one_hot_encoded[:, i], output_scores[:, i])
         auc = metrics.auc(fpr, tpr)
-        display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc, estimator_name=f'{label_map[i]} estimator')
+        display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc, estimator_name=f'{label_map[i]} fold {fold} estimator')
         display.plot()
-        plt.savefig(f"{path}/ROCCurves/{label_map[i]}_ROC_curve_{timestamp}.png")
+        plt.savefig(f"{path}/ROCCurves/{label_map[i]}_ROC_curve_{fold}_{timestamp}.png")
 
 
 def update_confusion_matrix(confusion_matrix, prediction, labels):
@@ -256,7 +345,7 @@ def update_confusion_matrix(confusion_matrix, prediction, labels):
     return confusion_matrix
 
 
-def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, timestamp, path):
+def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, fold, timestamp, path):
     # remove the last character if it is a slash
     if path[-1] == '/':
         path = path[:-1]
@@ -289,11 +378,11 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, ti
 
     # computing the ROC curve
     output_scores = np.reshape(output_scores, (-1, 3))
-    compute_ROC_curves(output_scores, test_labels, timestamp, path)
+    compute_ROC_curves(output_scores, test_labels, fold, timestamp, path)
 
     save_metrics_to_file(confusion_matrix, f1_scores, output_scores,
-                         f"{path}/PerformanceMetrics/ConfusionMatrix_{timestamp}.csv",
-                         f"{path}/PerformanceMetrics/F1Scores_{timestamp}.csv",
-                         f"{path}/PerformanceMetrics/OutputScores_{timestamp}.csv")
+                         f"{path}/PerformanceMetrics/ConfusionMatrix_{fold}_{timestamp}.csv",
+                         f"{path}/PerformanceMetrics/F1Scores_{fold}_{timestamp}.csv",
+                         f"{path}/PerformanceMetrics/OutputScores_{fold}_{timestamp}.csv")
 
-    return avg_loss, confusion_matrix, f1_scores
+    return avg_loss, accuracy, confusion_matrix, f1_scores

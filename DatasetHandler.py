@@ -38,3 +38,14 @@ class MriDataset(Dataset):
 
         return self.img_labels.iloc[indices, 1].to_numpy()
 
+
+def generate_folds(folds_dir):
+    folds = os.listdir(folds_dir)
+    folds_arr = np.array([])
+
+    for fold in folds:
+        fold_dir = os.path.join(folds_dir, fold)
+        fold_dataset = MriDataset(fold_dir)
+        folds_arr = np.append(folds_arr, fold_dataset)
+
+    return folds_arr

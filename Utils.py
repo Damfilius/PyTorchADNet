@@ -71,6 +71,7 @@ def parse_args(arguments):
     parser.add_argument('dataset')
     parser.add_argument('model_path')
     parser.add_argument('-e', '--epochs', type=int, default=50)
+    # parser.add_argument('-f', '--folds', type=bool, default=False)
     args = parser.parse_args(arguments)
     return args
 
@@ -86,6 +87,10 @@ def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold, t
     np.savetxt(f"{path}/AccsAndLosses/TrainAccs{fold}_{timestamp}.csv", train_accs, delimiter=",")
     np.savetxt(f"{path}/AccsAndLosses/ValLosses{fold}_{timestamp}.csv", val_losses, delimiter=",")
     np.savetxt(f"{path}/AccsAndLosses/ValAccs{fold}_{timestamp}.csv", val_accs, delimiter=",")
+
+def save_train_accs_and_losses(train_losses, train_accuracies, fold, timestamp, path):
+    np.savetxt(f"{path}/AccsAndLosses/TrainLosses{fold}_{timestamp}.csv", train_losses, delimiter=",")
+    np.savetxt(f"{path}/AccsAndLosses/TrainAccs{fold}_{timestamp}.csv", train_accuracies, delimiter=",")
 
 
 def prepare_directory(directory_path):
