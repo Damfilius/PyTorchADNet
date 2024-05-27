@@ -1,16 +1,11 @@
 import datetime
 import sys
-import torch
-import numpy as np
 from torch import nn, optim
-from torch.utils.data import Subset
-from torchvision.transforms import ToTensor
-from sklearn.model_selection import train_test_split
 
-from Utils import parse_args, calculate_distribution, prepare_directory
-from DatasetHandler import MriDataset, generate_folds
-from Model import ADNet, device, LeNet3D, LeNet3DBn
-from TrainingAlgorithm import train_model, train_model_2, test_model
+from Utils import parse_args, prepare_directory
+from DatasetHandler import generate_folds
+from Model import device, LeNet3D, LeNet3DBn
+from TrainingAlgorithm import train_model_2
 
 
 # labels map
@@ -18,8 +13,9 @@ from TrainingAlgorithm import train_model, train_model_2, test_model
 def create_model(has_bn, volume):
     if has_bn:
         return LeNet3DBn(volume).to(device)
-    
+
     return LeNet3D(volume).to(device)
+
 
 def main(arguments):
     args = parse_args(arguments)
@@ -45,7 +41,9 @@ def main(arguments):
     # training and evaluation
     prepare_directory(args.model_path)
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    model_weights = train_model_2(lenet, adam, cross_entropy, folds_arr, batch_size, num_epochs, device, timestamp, args.model_path)
+    model_weights = train_model_2(lenet, adam, cross_entropy, folds_arr, batch_size, num_epochs, device, timestamp,
+                                  args.model_path)
+
 
 # starting point
 if __name__ == '__main__':

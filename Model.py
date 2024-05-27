@@ -115,6 +115,7 @@ class LeNet3D(nn.Module):
         x = self.fc3(x)
         return x
 
+
 class LeNet3DBn(nn.Module):
     def __init__(self, volume):
         super(LeNet3DBn, self).__init__()
@@ -137,6 +138,7 @@ class LeNet3DBn(nn.Module):
         x = fun.relu(self.fc2(x))
         x = self.fc3(x)
         return x
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, inchannel, outchannel, stride=1):
@@ -161,6 +163,7 @@ class ResidualBlock(nn.Module):
         out = fun.relu(out)
 
         return out
+
 
 class ResNet(nn.Module):
     def __init__(self, ResidualBlock, num_classes=3):
@@ -195,4 +198,3 @@ class ResNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.fc(out)
         return out
-

@@ -1,4 +1,5 @@
 from torch.utils.data import Dataset
+from torchvision import transforms
 import numpy as np
 import nibabel as nib
 import pandas as pd
@@ -41,11 +42,14 @@ class MriDataset(Dataset):
 
 def generate_folds(folds_dir):
     folds = os.listdir(folds_dir)
-    folds_arr = np.array([])
+    folds_arr = []
 
     for fold in folds:
         fold_dir = os.path.join(folds_dir, fold)
-        fold_dataset = MriDataset(fold_dir)
-        folds_arr = np.append(folds_arr, fold_dataset)
+        annotations_file = os.path.join(fold_dir, "labels.csv")
+        fold_dataset = MriDataset(annotations_file, fold_dir, transform=transforms.ToTensor())
+        folds_arr.append(fold_dataset)
 
-    return folds_arr
+    dataset_array = np.empty(10, dtype=object)
+    dataset_array[:] = folds_arr
+    return dataset_array
