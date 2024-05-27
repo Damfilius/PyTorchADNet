@@ -9,11 +9,17 @@ from sklearn.model_selection import train_test_split
 
 from Utils import parse_args, calculate_distribution, prepare_directory
 from DatasetHandler import MriDataset, generate_folds
-from Model import ADNet, device, LeNet3D
+from Model import ADNet, device, LeNet3D, LeNet3DBn
 from TrainingAlgorithm import train_model, train_model_2, test_model
 
 
 # labels map
+
+def create_model(has_bn, volume):
+    if has_bn:
+        return LeNet3DBn(volume).to(device)
+    
+    return LeNet3D(volume).to(device)
 
 def main(arguments):
     args = parse_args(arguments)
@@ -29,15 +35,12 @@ def main(arguments):
     folds_dir = args.dataset
     folds_arr = generate_folds(folds_dir)
 
-
-
     # model
-    lenet = LeNet3D().to(device)
+    lenet = create_model(args.batch_norm, args.volume)
     adam = optim.Adam(lenet.parameters(), 0.0001)
     cross_entropy = nn.CrossEntropyLoss()
     num_epochs = args.epochs
-    num_folds = 6
-    batch_size = 1
+    batch_size = args.batch
 
     # training and evaluation
     prepare_directory(args.model_path)

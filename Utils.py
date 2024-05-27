@@ -71,7 +71,9 @@ def parse_args(arguments):
     parser.add_argument('dataset')
     parser.add_argument('model_path')
     parser.add_argument('-e', '--epochs', type=int, default=50)
-    # parser.add_argument('-f', '--folds', type=bool, default=False)
+    parser.add_argument('-b', '--batch', type=int, default=1)
+    parser.add_argument('-n', '--batch_norm', type=bool, default=False)
+    parser.add_argument('-v', '--volume', type=int, default=100000)
     args = parser.parse_args(arguments)
     return args
 

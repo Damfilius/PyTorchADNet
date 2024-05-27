@@ -95,42 +95,44 @@ class ADNet(nn.Module):
 
 
 class LeNet3D(nn.Module):
-    def __init__(self):
+    def __init__(self, volume):
         super(LeNet3D, self).__init__()
+        self.volume = volume
 
         self.conv1 = nn.Conv3d(1, 6, kernel_size=(5, 5, 5))
         self.pool = nn.MaxPool3d(2, 2)
         self.conv2 = nn.Conv3d(6, 16, kernel_size=(5, 5, 5))
-        self.fc1 = nn.Linear(16 * 44 * 36 * 36, 120)
+        self.fc1 = nn.Linear(self.volume, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 3)
 
     def forward(self, x):
         x = self.pool(fun.relu(self.conv1(x)))
         x = self.pool(fun.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 44 * 36 * 36)
+        x = x.view(-1, self.volume)
         x = fun.relu(self.fc1(x))
         x = fun.relu(self.fc2(x))
         x = self.fc3(x)
         return x
 
 class LeNet3DBn(nn.Module):
-    def __init__(self):
+    def __init__(self, volume):
         super(LeNet3DBn, self).__init__()
+        self.volume = volume
 
         self.conv1 = nn.Conv3d(1, 6, kernel_size=(5, 5, 5))
         self.bn1 = nn.BatchNorm3d(6)
         self.pool = nn.MaxPool3d(2, 2)
         self.conv2 = nn.Conv3d(6, 16, kernel_size=(5, 5, 5))
         self.bn2 = nn.BatchNorm3d(16)
-        self.fc1 = nn.Linear(16 * 44 * 36 * 36, 120)
+        self.fc1 = nn.Linear(self.volume, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 3)
 
     def forward(self, x):
         x = self.pool(fun.relu(self.bn1(self.conv1(x))))
         x = self.pool(fun.relu(self.bn2(self.conv2(x))))
-        x = x.view(-1, 16 * 44 * 36 * 36)
+        x = x.view(-1, self.volume)
         x = fun.relu(self.fc1(x))
         x = fun.relu(self.fc2(x))
         x = self.fc3(x)
