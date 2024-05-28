@@ -13,6 +13,7 @@ import shutil
 import subprocess
 from Utils import create_dir
 
+
 def compute_min_roi(input_dir, output_dir):
     dir_list = os.listdir(input_dir)
 
@@ -286,14 +287,15 @@ def intensity_normalization(in_dir, out_dir):
         normalized_mri = nib.Nifti1Image(volume, affine=mri.affine)
         nib.save(normalized_mri, out_file)
 
+
 def get_mean_dimensions(in_dir):
-    length_sums = np.array([0, 0, 0])
+    length_sums = np.array([0.0, 0.0, 0.0])
     files = os.listdir(in_dir)
-    for file in files:
+    for file in tqdm(files, total=len(files)):
         if ".nii" not in file:
             continue
 
-        in_file = os.path.join(in_dir, in_file)
+        in_file = os.path.join(in_dir, file)
         stats = fslstats(in_file).w.run()
         lens = stats[1:6:2]
         length_sums += lens
@@ -301,7 +303,8 @@ def get_mean_dimensions(in_dir):
     num_files = len(files)
     mean_lens = length_sums / num_files
 
-    return (mean_lens[0], mean_lens[1], mean_lens[2])
+    return mean_lens
+
 
 # wrapper for the run_first_all function since the original wrapper doesn't work
 def run_first_all_bet(input, output, report, is_brain=False):
@@ -327,7 +330,6 @@ def run_first_all_bet(input, output, report, is_brain=False):
         print("Error executing command:")
         print("Output:", e.stdout.decode(), file=report)
         print("Errors:", e.stderr.decode(), file=report)
-
 
 
 def perform_segmentations(in_dir, out_dir, report, is_brain=False):
@@ -375,6 +377,7 @@ def get_roi(file, growth_factor):
 
     return min_vals, lens
 
+
 def get_roi_volumes_from_segs(seg_dir, mri_dir, out_dir, growth_factor=1):
     seg_files = os.listdir(seg_dir)
     mri_files = os.listdir(mri_dir)
@@ -406,7 +409,7 @@ def get_roi_volumes_from_segs(seg_dir, mri_dir, out_dir, growth_factor=1):
 
     mean_dimensions = np.ceil(sum_lens / len(seg_files))
     return (mean_dimensions[0], mean_dimensions[1], mean_dimensions[2])
-        
+
 
 def bet_and_reg(in_dir, bet_out_dir, reg_out_dir, mat_dir, ref_file):
     flirt_params = {
@@ -447,6 +450,38 @@ def remove_seg_waste(brain_dir):
     return num_brains
 
 
+# addition for resampled_reg_brains, etc.
+def calculate_inter_fold_dimensions(folds_dir, addition):
+    global_mean_dimensions = np.array([0.0, 0.0, 0.0])
+    folds = os.listdir(folds_dir)
+
+    for fold in folds:
+        fold_dir = os.path.join(folds_dir, fold)
+        resampled_dir = os.path.join(fold_dir, addition)
+        global_mean_dimensions += get_mean_dimensions(resampled_dir)
+
+    global_mean_dimensions /= len(folds)
+    return global_mean_dimensions
+
+
+
+def resampled_all_resampled_brains(folds_dir):
+    volumes = np.array([])
+    folds = os.listdir(folds_dir)
+
+    for fold in folds:
+        fold_dir = os.path.join(folds_dir, fold)
+        resampled_dir = os.path.join(fold_dir, "resampled_reg_brains")
+        fold_files = os.listdir(resampled_dir)
+        random_file = fold_files[0]
+        fold_file_path = os.path.join(resampled_dir, random_file)
+        file_volume = fslstats(fold_file_path).v.run()
+        volumes = np.append(volumes, file_volume[0])
+
+    return volumes, np.mean(volumes)
+    
+
+
 def preprocess_mris(in_dir, out_dir, ref_file):
     """
     in_dir - directory where subject separated scans can be found
@@ -455,11 +490,11 @@ def preprocess_mris(in_dir, out_dir, ref_file):
     """
 
     # brain extract and register
-    brain_dir=f"{out_dir}/brain_extractions"
+    brain_dir = f"{out_dir}/brain_extractions"
     create_dir(brain_dir)
-    reg_dir=f"{out_dir}/registered_brains"
+    reg_dir = f"{out_dir}/registered_brains"
     create_dir(reg_dir)
-    mat_dir=f"{out_dir}/garbage_matrices"
+    mat_dir = f"{out_dir}/garbage_matrices"
     create_dir(mat_dir)
 
     print("extracting brains and registering...")
@@ -486,7 +521,7 @@ def preprocess_mris(in_dir, out_dir, ref_file):
     # starting segmentations
     seg_dir = f"{out_dir}/seg_dir"
     create_dir(seg_dir)
-    
+
     print("segmenting brains...")
     report_file = open(f"{out_dir}/seg_report.txt", "w")
     perform_segmentations(brain_dir, seg_dir, report_file, is_brain=True)
@@ -541,10 +576,43 @@ def preprocess_mris(in_dir, out_dir, ref_file):
     resample_mris(subcort_vol_dir_30, subcort_dir_30, mean_dimensions_30)
     shutil.rmtree(subcort_vol_dir_30)
 
-    
+
+def extract_exact_roi_all(in_dir, reg_brain_dir_name, exact_roi_dir_name):
+    mean_dimensions_sum = np.array([0.0, 0.0, 0.0])
+    folds = os.listdir(in_dir)
+
+    for fold in tqdm(folds, total=len(folds)):
+        print(f"fold {fold}")
+
+        fold_dir = os.path.join(in_dir, fold)
+        reg_brains_dir = os.path.join(fold_dir, reg_brain_dir_name) 
+        exact_roi_out = os.path.join(fold_dir, exact_roi_dir_name)
+        create_dir(exact_roi_out)
+        mean_dimensions_sum += np.array(extract_exact_roi(reg_brains_dir, exact_roi_out))
+
+    num_folds = len(folds)
+    return mean_dimensions_sum / num_folds
+
+
+def resample_reg_brains_all(folds_dir, exact_roi_dir_name, resampled_brain_out_dir, target_shape):
+    folds = os.listdir(folds_dir)
+
+    for fold in tqdm(folds, total=len(folds)):
+        print(f"fold {fold}")
+
+        fold_dir = os.path.join(folds_dir, fold)
+        exact_brain_roi_dir = os.path.join(fold_dir, exact_roi_dir_name)
+        resampled_out = os.path.join(fold_dir, resampled_brain_out_dir)
+        resample_mris(exact_brain_roi_dir, resampled_out, target_shape)
+        
+
 
 if __name__ == '__main__':
-    in_dir = "/home/damfil/Uni/FYP/resources/mri/ad/dataset/NiftiDataset/auxillary/test_directory/fold1"
-    out_dir = "/home/damfil/Uni/FYP/resources/mri/ad/dataset/NiftiDataset/auxillary/test_directory/folds1_processing_output"
-    ref_file = "/usr/local/fsl/data/standard/MNI152_T1_1mm_brain.nii.gz"
-    preprocess_mris(in_dir, out_dir, ref_file)
+    fold_dir = ""
+    out_exact_roi_dir = ""
+    mean_dimensions = extract_exact_roi(fold_dir, out_exact_roi_dir)
+    print(f"Mean dimensions for {out_exact_roi_dir}:")
+    print(mean_dimensions)
+
+    # then you have to resample the brains with the GLOBAL mean dimensions
+
