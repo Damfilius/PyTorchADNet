@@ -609,10 +609,33 @@ def resample_reg_brains_all(folds_dir, exact_roi_dir_name, resampled_brain_out_d
 
 if __name__ == '__main__':
     fold_dir = ""
-    out_exact_roi_dir = ""
-    mean_dimensions = extract_exact_roi(fold_dir, out_exact_roi_dir)
-    print(f"Mean dimensions for {out_exact_roi_dir}:")
+
+    registered_brains_dir = os.path.join(fold_dir, "registered_brains")
+    out_exact_roi_dir = os.path.join(fold_dir, "exact_reg_brain_roi")
+    mean_dimensions = extract_exact_roi(registered_brains_dir, out_exact_roi_dir)
+    print(f"Exact roi mean dimensions for {out_exact_roi_dir}:")
     print(mean_dimensions)
+
+    seg_dir = os.path.join(fold_dir, "seg_dir")
+    brain_dir = os.path.join(fold_dir, "brain_extractions")
+    out_exact_seg_roi_dir = os.path.join(fold_dir, "SegROIVolumes") 
+    out_exact_seg_roi_dir_10 = os.path.join(fold_dir, "SegROIVolumes10") 
+    out_exact_seg_roi_dir_20 = os.path.join(fold_dir, "SegROIVolumes20") 
+    out_exact_seg_roi_dir_30 = os.path.join(fold_dir, "SegROIVolumes30") 
+    create_dir(out_exact_seg_roi_dir)
+    create_dir(out_exact_seg_roi_dir_10)
+    create_dir(out_exact_seg_roi_dir_20)
+    create_dir(out_exact_seg_roi_dir_30)
+    seg_mean_dimensions = get_roi_volumes_from_segs(seg_dir, brain_dir, out_exact_seg_roi_dir)
+    seg_mean_dimensions_10 = get_roi_volumes_from_segs(seg_dir, brain_dir, out_exact_seg_roi_dir_10, growth_factor=1.1)
+    seg_mean_dimensions_20 = get_roi_volumes_from_segs(seg_dir, brain_dir, out_exact_seg_roi_dir_20, growth_factor=1.2)
+    seg_mean_dimensions_30 = get_roi_volumes_from_segs(seg_dir, brain_dir, out_exact_seg_roi_dir_30, growth_factor=1.3)
+
+    print(f"seg mean dimensions default: {seg_mean_dimensions}")
+    print(f"seg mean dimensions 10%: {seg_mean_dimensions_10}")
+    print(f"seg mean dimensions 20%: {seg_mean_dimensions_20}")
+    print(f"seg mean dimensions 30%: {seg_mean_dimensions_30}")
+
 
     # then you have to resample the brains with the GLOBAL mean dimensions
 
