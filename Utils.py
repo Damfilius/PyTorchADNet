@@ -3,6 +3,7 @@ import os
 
 import numpy as np
 from torch import equal
+import sys
 import datetime
 
 
@@ -90,6 +91,7 @@ def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold, t
     np.savetxt(f"{path}/AccsAndLosses/ValLosses{fold}_{timestamp}.csv", val_losses, delimiter=",")
     np.savetxt(f"{path}/AccsAndLosses/ValAccs{fold}_{timestamp}.csv", val_accs, delimiter=",")
 
+
 def save_train_accs_and_losses(train_losses, train_accuracies, fold, timestamp, path):
     np.savetxt(f"{path}/AccsAndLosses/TrainLosses{fold}_{timestamp}.csv", train_losses, delimiter=",")
     np.savetxt(f"{path}/AccsAndLosses/TrainAccs{fold}_{timestamp}.csv", train_accuracies, delimiter=",")
@@ -113,6 +115,7 @@ def prepare_directory(directory_path):
 
     if not os.path.isdir(f"{directory_path}/ROCCurves"):
         os.makedirs(f"{directory_path}/ROCCurves")
+
 
 def empty_logs(dirname="logs/"):
     try:
@@ -150,8 +153,17 @@ def print_datasets_into(labels, train_idx, test_idx, is_valid=False):
     print(f" {eval_set} SET DISTRIBUTION: {val_dist}")
     print("----------------------------------------")
 
+
 def create_dir(path_to_dir):
     if os.path.isdir(path_to_dir):
         return
-    
+
     os.mkdir(path_to_dir)
+
+
+def replace_zeros_with_min_float(arr):
+    if 0 not in arr:
+        return arr
+
+    arr = np.where(arr == 0, sys.float_info.min, arr)
+    return arr

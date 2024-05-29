@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
-from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into, save_train_accs_and_losses
+from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into, save_train_accs_and_losses, replace_zeros_with_min_float
 import time
+import sys
 
 label_map = {
     0: "CN",
@@ -292,8 +293,8 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
 
     # benchmarking
     total_time = np.sum(train_epoch_time)
-    average_epoch_time = np.mean(average_epoch_time)
-    avg_time_per_fold = total_time / 10
+    average_epoch_time = np.mean(train_epoch_time)
+    avg_time_per_fold = total_time / len(folds)
     avg_pred_time = np.mean(pred_times)
 
     print(f"Benchmarking Results:\n"
@@ -336,6 +337,7 @@ def compute_ROC_curves(output_scores, test_labels, fold, timestamp, path):
         display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc, estimator_name=f'{label_map[i]} fold {fold} estimator')
         display.plot()
         plt.savefig(f"{path}/ROCCurves/{label_map[i]}_ROC_curve_{fold}_{timestamp}.png")
+        plt.close()
 
 
 def update_confusion_matrix(confusion_matrix, prediction, labels):
