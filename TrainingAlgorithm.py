@@ -287,7 +287,7 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
         # saving the performance metrics
         save_accs_and_losses(train_losses, train_accuracies, validation_losses, validation_accuracies, i, timestamp, path)
         best_fold_validation_accuracies = np.append(best_fold_validation_accuracies, best_validation_accuracy)
-        best_validation_loss = np.minimum(validation_losses)
+        best_validation_loss = np.min(validation_losses)
         best_fold_validation_losses = np.append(best_fold_validation_losses, best_validation_loss)
         print("--------------------------------------------------------------------------------------------\n")
 
@@ -296,7 +296,7 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
         # model.load_state_dict(torch.load(f"{path}/Models/init_model_{timestamp}"))
 
     # mean performances of each fold
-    validation_file = open(f"{path}/Benchmarks/validation_{timestamp}.txt", "a")
+    validation_file = open(f"{path}/PerformanceMetrics/validation_{timestamp}.txt", "a")
     save_validation_performance_to_file(best_fold_validation_accuracies, best_fold_validation_losses, validation_file)
     validation_file.close()
     
@@ -414,7 +414,7 @@ def test_models(model, models_dir, loss_fn, test_folds, batch_size, device, time
         model_path = os.path.join(models_dir, saved_model)
         model.load_state_dict(torch.load(model_path))
 
-        saved_model_fold_num = saved_model[model.index('_') + len("fold") + 1]
+        saved_model_fold_num = saved_model[saved_model.index('_') + len("fold") + 1]
         if not saved_model_fold_num.isnumeric():
             saved_model_fold_num = saved_model
 
@@ -427,6 +427,6 @@ def test_models(model, models_dir, loss_fn, test_folds, batch_size, device, time
 
     print(f"test losses: {test_losses}")
     print(f"mean test loss: {np.mean(test_losses)}")
-    print(f"test accuracies: {test_accuracy}")
+    print(f"test accuracies: {test_accuracies}")
     print(f"mean test accuracies: {np.mean(test_accuracies)}")
         

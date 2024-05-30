@@ -45,7 +45,7 @@ def main(arguments):
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     models_dir = train_model_2(lenet, adam, cross_entropy, train_folds, batch_size, num_epochs, device, timestamp,
                                   args.model_path)
-    test_models(lenet, models_dir, cross_entropy, test_folds, )
+    test_models(lenet, models_dir, cross_entropy, test_folds, batch_size, device, timestamp, args.model_path)
 
 
 # starting point
