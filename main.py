@@ -1,11 +1,12 @@
 import datetime
 import sys
 from torch import nn, optim
+import random
 
-from Utils import parse_args, prepare_directory
+from Utils import parse_args, prepare_directory, test_and_train_split
 from DatasetHandler import generate_folds
 from Model import device, LeNet3D, LeNet3DBn
-from TrainingAlgorithm import train_model_2
+from TrainingAlgorithm import train_model_2, test_models
 
 
 # labels map
@@ -30,6 +31,7 @@ def main(arguments):
 
     folds_dir = args.dataset
     folds_arr = generate_folds(folds_dir)
+    test_folds, train_folds = test_and_train_split(folds_arr)
 
     # model
     lenet = create_model(args.batch_norm, args.volume)
@@ -41,8 +43,9 @@ def main(arguments):
     # training and evaluation
     prepare_directory(args.model_path)
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    model_weights = train_model_2(lenet, adam, cross_entropy, folds_arr, batch_size, num_epochs, device, timestamp,
+    models_dir = train_model_2(lenet, adam, cross_entropy, train_folds, batch_size, num_epochs, device, timestamp,
                                   args.model_path)
+    test_models(lenet, models_dir, cross_entropy, test_folds, )
 
 
 # starting point

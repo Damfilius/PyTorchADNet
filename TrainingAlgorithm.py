@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
-from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into, save_train_accs_and_losses, replace_zeros_with_min_float
+from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into, reset_model_weights, save_benchmarks_to_file, save_performance_metrics_to_file
 import time
-import sys
+import os
 
 label_map = {
     0: "CN",
@@ -227,86 +227,82 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
     # logging and model
     writer = SummaryWriter(f"{path}/logs/")
     save(model.state_dict(), f"{path}/Models/init_model_{timestamp}")
-    model_path = f"{path}/Models/model_{timestamp}"
 
     # benchmarks
     benchmarks_file = open(f"{path}/Benchmarks/training_{timestamp}.txt", "a")
     train_epoch_time = np.array([])
+    validation_epoch_time = np.array([])
     pred_times = np.array([])
 
-    # saving the model and calculating average performance
-    best_accuracy = 0
-    test_losses = np.array([])
-    test_accuracies = np.array([])
+    # performance
+    best_fold_validation_losses = np.array([])
+    best_fold_validation_accuracies = np.array([])
 
     for i in range(len(folds)):
         # preparing the training and testing dataset
-        test_fold = folds[i]
+        val_fold = folds[i]
         training_folds = np.delete(folds, i)
         training_dataset = ConcatDataset(training_folds)
         train_loader = DataLoader(training_dataset, batch_size, drop_last=True)
+        validation_loader = DataLoader(val_fold, batch_size, drop_last=True)
 
         # training performance
         train_accuracies = np.array([])
         train_losses = np.array([])
+        validation_accuracies = np.array([])
+        validation_losses = np.array([])
+
+        # saving the model
+        best_validation_accuracy = 0
+        model_path = f"{path}/Models/model_fold{i}_{timestamp}"
 
         # train the model
         for e in range(num_epochs):
             t_loss, t_acc, train_time, avg_pred_time = train_one_epoch(model, train_loader, opt_fn, loss_fn, e, device)
-            write_training(writer, t_loss, t_acc, i, e)
+            v_loss, v_acc, val_time, avg_val_pred = validate_one_epoch(model, validation_loader, loss_fn, e, device)
+            write_scalars(writer, t_loss, t_acc, v_loss, v_acc, i, e)
+
+            # conditionally save the model
+            if v_acc > best_validation_accuracy:
+                print("Saving the model...")
+                best_validation_accuracy = v_acc
+                save(model.state_dict(), model_path)
 
             # benchmarks
             train_epoch_time = np.append(train_epoch_time, train_time)
-            pred_times = np.append(pred_times, avg_pred_time)
+            validation_epoch_time = np.append(validation_epoch_time, val_time)
+            pred_times = np.append(pred_times, [avg_pred_time, avg_val_pred])
 
             # performance
             train_losses = np.append(train_losses, t_loss)
             train_accuracies = np.append(train_accuracies, t_acc)
+            validation_losses = np.append(validation_losses, v_loss)
+            validation_accuracies = np.append(validation_accuracies, v_acc)
 
-        # test the model
-        test_labels = test_fold.get_labels()
-        test_loss, test_accuracy, conf_matrix, f1_scores = test_model(model, loss_fn, test_fold, test_labels, batch_size, device, i, timestamp, path)
-
-        # saving the model
-        if test_accuracy > best_accuracy:
-            print("Saving the model...")
-            best_accuracy = test_accuracy
-            save(model.state_dict(), model_path)
-
-        # performance metrics
-        test_losses = np.append(test_losses, test_loss)
-        test_accuracies = np.append(test_accuracies, test_accuracy)
-
-        save_train_accs_and_losses(train_losses, train_accuracies, i, timestamp, path)
+        # saving the performance metrics
+        save_accs_and_losses(train_losses, train_accuracies, validation_losses, validation_accuracies, i, timestamp, path)
+        best_fold_validation_accuracies = np.append(best_fold_validation_accuracies, best_validation_accuracy)
+        best_validation_loss = np.minimum(validation_losses)
+        best_fold_validation_losses = np.append(best_fold_validation_losses, best_validation_loss)
         print("--------------------------------------------------------------------------------------------\n")
 
         # resetting the model
-        model.load_state_dict(torch.load(f"{path}/Models/init_model_{timestamp}"))
+        reset_model_weights(model)
+        # model.load_state_dict(torch.load(f"{path}/Models/init_model_{timestamp}"))
 
-    # performance
-    average_test_loss = np.mean(test_losses)
-    average_test_accuracy = np.mean(test_accuracies)
-    print(f"Losses: {test_losses}")
-    print(f"Average Loss: {average_test_loss}")
-    print(f"Accuracies: {test_accuracies}")
-    print(f"Average Accuracy: {average_test_accuracy}")
+    # mean performances of each fold
+    mean_validation_accuracy = np.mean(best_fold_validation_accuracies)
+    mean_validation_loss = np.mean(best_fold_validation_losses)
+    print(f"All Best Validation Accuracies: {best_fold_validation_accuracies}")
+    print(f"Mean Validation Accuracy: {mean_validation_accuracy}")
+    print(f"All Best Validation Losses: {best_fold_validation_losses}")
+    print(f"Mean Validation Loss: {mean_validation_loss}")
 
-    # benchmarking
-    total_time = np.sum(train_epoch_time)
-    average_epoch_time = np.mean(train_epoch_time)
-    avg_time_per_fold = total_time / len(folds)
-    avg_pred_time = np.mean(pred_times)
-
-    print(f"Benchmarking Results:\n"
-          f"Total Time: {total_time}s\n",
-          f"Average Time / Fold: {avg_time_per_fold}s\n"
-          f"Average Training Time / Epoch: {average_epoch_time}s\n"
-          f"Average Prediction Time: {avg_pred_time}",
-          file=benchmarks_file)
-
+    # saving the benchmarks
+    save_benchmarks_to_file(train_epoch_time, validation_epoch_time, len(folds), pred_times, benchmarks_file)
     benchmarks_file.close()
 
-    return model_path
+    return f"{path}/Models"
 
 def compute_f1_scores(confusion_matrix):
     sum_horiz = np.sum(confusion_matrix, axis=1)
@@ -388,3 +384,38 @@ def test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, fo
                          f"{path}/PerformanceMetrics/OutputScores_{fold}_{timestamp}.csv")
 
     return avg_loss, accuracy, confusion_matrix, f1_scores
+
+
+def test_models(model, models_dir, loss_fn, test_folds, batch_size, device, timestamp, path):
+    performance_file = open(f"{path}/PerformanceMetrics/testing_results_{timestamp}.txt", "a")
+    test_losses = np.array([])
+    test_accuracies = np.array([])
+
+    test_dataset = ConcatDataset(test_folds)
+    test_labels_0 = test_folds[0].get_labels()
+    test_labels_1 = test_folds[1].get_labels()
+    test_labels = np.concatenate((test_labels_0, test_labels_1))
+
+    for saved_model in os.listdir(models_dir):
+        if "init" in saved_model:
+            continue
+
+        model_path = os.path.join(models_dir, saved_model)
+        model.load_state_dict(torch.load(model_path))
+
+        saved_model_fold_num = saved_model[model.index('_') + len("fold") + 1]
+        if not saved_model_fold_num.isnumeric():
+            saved_model_fold_num = saved_model
+
+        test_loss, test_accuracy, confusion_matrix, f1_scores = test_model(model, loss_fn, test_dataset, test_labels, batch_size, device, saved_model_fold_num, timestamp, path)
+        test_losses = np.append(test_losses, test_loss)
+        test_accuracies = np.append(test_accuracies, test_accuracy)
+
+    save_performance_metrics_to_file(test_losses, test_accuracies, performance_file)
+    performance_file.close()
+
+    print(f"test losses: {test_losses}")
+    print(f"mean test loss: {np.mean(test_losses)}")
+    print(f"test accuracies: {test_accuracy}")
+    print(f"mean test accuracies: {np.mean(test_accuracies)}")
+        

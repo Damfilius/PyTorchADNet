@@ -92,6 +92,33 @@ def save_accs_and_losses(train_losses, train_accs, val_losses, val_accs, fold, t
     np.savetxt(f"{path}/AccsAndLosses/ValAccs{fold}_{timestamp}.csv", val_accs, delimiter=",")
 
 
+def save_benchmarks_to_file(train_times_per_epoch, val_times_per_epoch, num_folds, pred_times, benchmarks_file):
+    total_time = np.sum(train_times_per_epoch) + np.sum(val_times_per_epoch)
+    avg_time_per_fold = total_time / num_folds
+    avg_train_time_per_epoch = np.mean(train_times_per_epoch)
+    avg_val_time_per_epoch = np.mean(val_times_per_epoch)
+    avg_pred_time = np.mean(pred_times)
+
+    print(f"Benchmarking Results:\n"
+          f"Total Time: {total_time}s\n",
+          f"Average Time / Fold: {avg_time_per_fold}s\n"
+          f"Average Training Time / Epoch: {avg_train_time_per_epoch}s\n"
+          f"Average Validation Time / Epoch: {avg_val_time_per_epoch}s\n"
+          f"Average Prediction Time: {avg_pred_time}",
+          file=benchmarks_file)
+
+
+def save_performance_metrics_to_file(test_losses, test_accuracies, performance_file):
+    mean_test_loss = np.mean(test_losses)
+    mean_test_accuracy = np.mean(test_accuracies)
+
+    print(f"test losses: {test_losses}",
+          f"mean test loss: {mean_test_loss}",
+          f"test accuracies: {test_accuracies}",
+          f"mean test accuracies: {mean_test_accuracy}",
+          file=performance_file)
+
+
 def save_train_accs_and_losses(train_losses, train_accuracies, fold, timestamp, path):
     np.savetxt(f"{path}/AccsAndLosses/TrainLosses{fold}_{timestamp}.csv", train_losses, delimiter=",")
     np.savetxt(f"{path}/AccsAndLosses/TrainAccs{fold}_{timestamp}.csv", train_accuracies, delimiter=",")
@@ -167,3 +194,17 @@ def replace_zeros_with_min_float(arr):
 
     arr = np.where(arr == 0, sys.float_info.min, arr)
     return arr
+
+
+def test_and_train_split(fold_arr):
+    num_folds = len(fold_arr)
+    random_indices = np.random.choice(num_folds, 2, replace=False)
+    test_folds = fold_arr[random_indices]
+    train_folds = np.delete(fold_arr, random_indices)
+    return test_folds, train_folds
+
+
+def reset_model_weights(model):
+    for layer in model.children():
+        if hasattr(layer, 'reset_parameters'):
+            layer.reset_parameters()
