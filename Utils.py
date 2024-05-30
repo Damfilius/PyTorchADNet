@@ -119,6 +119,17 @@ def save_performance_metrics_to_file(test_losses, test_accuracies, performance_f
           file=performance_file)
 
 
+def save_validation_performance_to_file(best_validation_accuracies, best_validation_losses, validation_file):
+    mean_validation_accuracy = np.mean(best_validation_accuracies)
+    mean_validation_loss = np.mean(best_validation_losses)
+
+    print(f"All Best Validation Accuracies: {best_validation_accuracies}",
+    f"Mean Validation Accuracy: {mean_validation_accuracy}",
+    f"All Best Validation Losses: {best_validation_losses}",
+    f"Mean Validation Loss: {mean_validation_loss}",
+    file=validation_file)
+
+
 def save_train_accs_and_losses(train_losses, train_accuracies, fold, timestamp, path):
     np.savetxt(f"{path}/AccsAndLosses/TrainLosses{fold}_{timestamp}.csv", train_losses, delimiter=",")
     np.savetxt(f"{path}/AccsAndLosses/TrainAccs{fold}_{timestamp}.csv", train_accuracies, delimiter=",")
@@ -208,3 +219,18 @@ def reset_model_weights(model):
     for layer in model.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
+
+
+def generate_random_index_pairs(num_datasets=8, num_pairs=4):
+    if num_pairs > num_datasets // 2:
+        raise ValueError("Number of pairs requested is too large for the given number of datasets.")
+    
+    indices = np.arange(num_datasets)
+    np.random.shuffle(indices)
+    
+    pairs = []
+    for i in range(num_pairs):
+        pair = indices[2*i:2*i+2]
+        pairs.append(pair)
+    
+    return np.array(pairs)

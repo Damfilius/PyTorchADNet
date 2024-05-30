@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import datetime
-from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into, reset_model_weights, save_benchmarks_to_file, save_performance_metrics_to_file
+from Utils import save_metrics_to_file, save_accs_and_losses, print_datasets_into, reset_model_weights, save_benchmarks_to_file, save_performance_metrics_to_file, test_and_train_split
+from Utils import generate_random_index_pairs, save_validation_performance_to_file
 import time
 import os
 
@@ -229,7 +230,6 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
     save(model.state_dict(), f"{path}/Models/init_model_{timestamp}")
 
     # benchmarks
-    benchmarks_file = open(f"{path}/Benchmarks/training_{timestamp}.txt", "a")
     train_epoch_time = np.array([])
     validation_epoch_time = np.array([])
     pred_times = np.array([])
@@ -238,13 +238,18 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
     best_fold_validation_losses = np.array([])
     best_fold_validation_accuracies = np.array([])
 
-    for i in range(len(folds)):
+    # dataset splitting
+    random_index_pairs = generate_random_index_pairs(num_datasets=len(folds), num_pairs=4)
+
+    for i in range(len(random_index_pairs)):
         # preparing the training and testing dataset
-        val_fold = folds[i]
-        training_folds = np.delete(folds, i)
+        index_pair = random_index_pairs[i]
+        validation_folds = folds[index_pair]
+        validation_dataset = ConcatDataset(validation_folds)
+        training_folds = np.delete(folds, index_pair)
         training_dataset = ConcatDataset(training_folds)
         train_loader = DataLoader(training_dataset, batch_size, drop_last=True)
-        validation_loader = DataLoader(val_fold, batch_size, drop_last=True)
+        validation_loader = DataLoader(validation_dataset, batch_size, drop_last=True)
 
         # training performance
         train_accuracies = np.array([])
@@ -291,16 +296,22 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
         # model.load_state_dict(torch.load(f"{path}/Models/init_model_{timestamp}"))
 
     # mean performances of each fold
+    validation_file = open(f"{path}/Benchmarks/validation_{timestamp}.txt", "a")
+    save_validation_performance_to_file(best_fold_validation_accuracies, best_fold_validation_losses, validation_file)
+    validation_file.close()
+    
+    # saving the benchmarks
+    benchmarks_file = open(f"{path}/Benchmarks/training_{timestamp}.txt", "a")
+    save_benchmarks_to_file(train_epoch_time, validation_epoch_time, len(folds), pred_times, benchmarks_file)
+    benchmarks_file.close()
+
+    # printing the performance
     mean_validation_accuracy = np.mean(best_fold_validation_accuracies)
     mean_validation_loss = np.mean(best_fold_validation_losses)
     print(f"All Best Validation Accuracies: {best_fold_validation_accuracies}")
     print(f"Mean Validation Accuracy: {mean_validation_accuracy}")
     print(f"All Best Validation Losses: {best_fold_validation_losses}")
     print(f"Mean Validation Loss: {mean_validation_loss}")
-
-    # saving the benchmarks
-    save_benchmarks_to_file(train_epoch_time, validation_epoch_time, len(folds), pred_times, benchmarks_file)
-    benchmarks_file.close()
 
     return f"{path}/Models"
 
