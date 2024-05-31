@@ -33,7 +33,7 @@ def train_one_epoch(model, dataloader, opt_fn, loss_fn, epoch_idx, device):
         mri, labels = data[0].to(device), data[1].to(device)
 
         # zero out the gradients
-        model.zero_grad(set_to_none=False)
+        opt_fn.zero_grad()
 
         # generate the output
         mri = mri.unsqueeze(1)
