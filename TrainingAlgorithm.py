@@ -224,7 +224,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
     return model_path
 
 
-def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device, timestamp, path, patience=10):
+def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device, timestamp, path, patience):
     # logging and model
     writer = SummaryWriter(f"{path}/logs/")
     save(model.state_dict(), f"{path}/Models/init_model_{timestamp}")
@@ -274,6 +274,7 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
                 print("Saving the model...")
                 best_validation_accuracy = v_acc
                 save(model.state_dict(), model_path)
+                fold_patience = patience
             else:
                 fold_patience -= 1
 
