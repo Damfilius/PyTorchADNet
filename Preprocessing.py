@@ -604,70 +604,51 @@ def resample_reg_brains_all(folds_dir, exact_roi_dir_name, resampled_brain_out_d
         exact_brain_roi_dir = os.path.join(fold_dir, exact_roi_dir_name)
         resampled_out = os.path.join(fold_dir, resampled_brain_out_dir)
         resample_mris(exact_brain_roi_dir, resampled_out, target_shape)
+
+
+def get_mean_volume(in_dir):
+    sum_volume = np.array([0.0, 0.0])
+    files = os.listdir(in_dir)
+    num_nii_files = 0
+
+    for file in files:
+        if ".nii" not in file:
+            continue
+
+        num_nii_files += 1
+        file_path = os.path.join(in_dir, file)
+        sum_volume += fslstats(file_path).v.run()
+
+    return sum_volume / num_nii_files
+
         
+def downcast_mri_scans(in_dir, out_dir):
+    files = os.listdir(in_dir)
+
+    for file in files:
+        if ".nii" not in file:
+            continue
+
+        in_file = os.path.join(in_dir, file)
+        img = nib.load(in_file)
+        data = img.get_fdata().astype(np.float32)
+        new_img = nib.Nifti1Image(data, img.affine, img.header)
+        new_img.header.set_data_dtype(np.float32)
+        output_filename = os.path.join(out_dir, file)
+        nib.save(new_img, output_filename)
+
 
 
 if __name__ == '__main__':
-    fold_dir = ""
+    folds_dir = ""
+    in_dir = ""
+    out_dir = ""
+    
+    for fold in os.listdir(folds_dir):
+        fold_dir = os.path.join(folds_dir, fold)
 
-    # registered_brains_dir = os.path.join(fold_dir, "registered_brains")
-    # out_exact_roi_dir = os.path.join(fold_dir, "exact_reg_brain_roi")
-    # mean_dimensions = extract_exact_roi(registered_brains_dir, out_exact_roi_dir)
-    # print(f"Exact roi mean dimensions for {out_exact_roi_dir}:")
-    # print(mean_dimensions)
-
-    # seg_dir = os.path.join(fold_dir, "seg_dir")
-    # brain_dir = os.path.join(fold_dir, "brain_extractions")
-    # out_exact_seg_roi_dir = os.path.join(fold_dir, "SegROIVolumes") 
-    # out_exact_seg_roi_dir_10 = os.path.join(fold_dir, "SegROIVolumes10") 
-    # out_exact_seg_roi_dir_20 = os.path.join(fold_dir, "SegROIVolumes20") 
-    # out_exact_seg_roi_dir_30 = os.path.join(fold_dir, "SegROIVolumes30") 
-    # create_dir(out_exact_seg_roi_dir)
-    # create_dir(out_exact_seg_roi_dir_10)
-    # create_dir(out_exact_seg_roi_dir_20)
-    # create_dir(out_exact_seg_roi_dir_30)
-    # seg_mean_dimensions = get_roi_volumes_from_segs(seg_dir, brain_dir, out_exact_seg_roi_dir)
-    # seg_mean_dimensions_10 = get_roi_volumes_from_segs(seg_dir, brain_dir, out_exact_seg_roi_dir_10, growth_factor=1.1)
-    # seg_mean_dimensions_20 = get_roi_volumes_from_segs(seg_dir, brain_dir, out_exact_seg_roi_dir_20, growth_factor=1.2)
-    # seg_mean_dimensions_30 = get_roi_volumes_from_segs(seg_dir, brain_dir, out_exact_seg_roi_dir_30, growth_factor=1.3)
-
-    # print(f"seg mean dimensions default: {seg_mean_dimensions}")
-    # print(f"seg mean dimensions 10%: {seg_mean_dimensions_10}")
-    # print(f"seg mean dimensions 20%: {seg_mean_dimensions_20}")
-    # print(f"seg mean dimensions 30%: {seg_mean_dimensions_30}")
-
-    exact_roi_dir = os.path.join(fold_dir, "exact_reg_brain_roi")
-    resampled_out_dir = os.path.join(fold_dir, "resampled_brains_2")
-    create_dir(resampled_out_dir)
-    target_shape = (152, 181, 157)
-    resample_mris(exact_roi_dir, resampled_out_dir, target_shape)
-
-    exact_seg_roi_dir = os.path.join(fold_dir, "SegROIVolumes")
-    exact_seg_roi_dir_10 = os.path.join(fold_dir, "SegROIVolumes10")
-    exact_seg_roi_dir_20 = os.path.join(fold_dir, "SegROIVolumes20")
-    exact_seg_roi_dir_30 = os.path.join(fold_dir, "SegROIVolumes30")
-
-    subcort_dir = os.path.join(fold_dir, "SubCortVol_2")
-    target_shape_default = (60, 72, 91)
-    create_dir(subcort_dir)
-
-    subcort_dir_10 = os.path.join(fold_dir, "SubCortVol10_2")
-    target_shape_10 = (62, 75, 94)
-    create_dir(subcort_dir_10)
-
-    subcort_dir_20 = os.path.join(fold_dir, "SubCortVol20_2")
-    target_shape_20 = (64, 77, 96)
-    create_dir(subcort_dir_20)
-
-    subcort_dir_30 = os.path.join(fold_dir, "SubCortVol30_2")
-    target_shape_30 = (65, 79, 99)
-    create_dir(subcort_dir_30)
-
-    resample_mris(exact_seg_roi_dir, subcort_dir, target_shape_default)
-    resample_mris(exact_seg_roi_dir_10, subcort_dir_10, target_shape_10)
-    resample_mris(exact_seg_roi_dir_20, subcort_dir_20, target_shape_20)
-    resample_mris(exact_seg_roi_dir_30, subcort_dir_30, target_shape_30)
+        downcast_mri_scans(fold_dir, out_dir)
+    
 
 
-    # then you have to resample the brains with the GLOBAL mean dimensions
 
