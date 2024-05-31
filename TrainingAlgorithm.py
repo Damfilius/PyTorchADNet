@@ -22,12 +22,11 @@ label_map = {
 
 
 def train_one_epoch(model, dataloader, opt_fn, loss_fn, epoch_idx, device):
-    model.train(True)
+    model.train()
 
-    running_loss = 0.
+    running_loss = 0.0
     num_correct = 0
     epoch_start = time.time()
-    avg_time_per_batch = 0
 
     for i, data in tqdm(enumerate(dataloader), total=len(dataloader)):
         mri, labels = data[0].to(device), data[1].to(device)
@@ -35,12 +34,11 @@ def train_one_epoch(model, dataloader, opt_fn, loss_fn, epoch_idx, device):
         # zero out the gradients
         opt_fn.zero_grad()
 
+        if len(mri.shape) == 4:
+            mri = mri.unsqueeze(1)
+
         # generate the output
-        mri = mri.unsqueeze(1)
-        pred_start = time.time()
         output = model(mri)
-        pred_end = time.time()
-        avg_time_per_batch += pred_end - pred_start
 
         # Compute the loss and its gradients
         loss = loss_fn(output, labels)
@@ -49,54 +47,50 @@ def train_one_epoch(model, dataloader, opt_fn, loss_fn, epoch_idx, device):
         # Adjust learning weights
         opt_fn.step()
 
-        running_loss += loss.item()
+        running_loss += loss.item() * mri.size(0)
         prediction = output.argmax(dim=1, keepdim=True)
         num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
     epoch_end = time.time()
     epoch_elapsed = epoch_end - epoch_start
-    avg_time_per_batch /= len(dataloader)
 
-    avg_loss = running_loss / len(dataloader)
+    avg_loss = running_loss / len(dataloader.dataset)
     accuracy = 100 * num_correct / len(dataloader.dataset)
 
     print(f"[TRAIN]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
-    return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
+    return avg_loss, accuracy, epoch_elapsed, epoch_elapsed / len(dataloader)
 
 
 def validate_one_epoch(model, dataloader2, loss_fn, epoch_idx, device):
     model.eval()
 
-    running_loss = 0.
+    running_loss = 0.0
     num_correct = 0
     epoch_start = time.time()
-    avg_time_per_batch = 0
 
-    for i, data in tqdm(enumerate(dataloader2), total=len(dataloader2)):
-        mri, labels = data[0].to(device), data[1].to(device)
+    with torch.no_grad():
+        for i, data in tqdm(enumerate(dataloader2), total=len(dataloader2)):
+            mri, labels = data[0].to(device), data[1].to(device)
 
-        mri = mri.unsqueeze(1)
+            if len(mri.shape) == 4:
+                mri = mri.unsqueeze(1)
 
-        pred_start = time.time()
-        output = model(mri)
-        pred_end = time.time()
-        avg_time_per_batch += pred_end - pred_start
+            output = model(mri)
 
-        loss = loss_fn(output, labels)
-        running_loss += loss.item()
+            loss = loss_fn(output, labels)
+            running_loss += loss.item() * mri.size(0)
 
-        prediction = output.argmax(dim=1, keepdim=True)
-        num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
+            prediction = output.argmax(dim=1, keepdim=True)
+            num_correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
     epoch_end = time.time()
     epoch_elapsed = epoch_end - epoch_start
-    avg_time_per_batch /= len(dataloader2)
 
-    avg_loss = running_loss / len(dataloader2)
+    avg_loss = running_loss / len(dataloader2.dataset)
     accuracy = 100 * num_correct / len(dataloader2.dataset)
 
     print(f"[VAL]: Epoch [{epoch_idx}] - Avg. loss per batch: [{avg_loss}] - Accuracy: [{accuracy}%]")
-    return avg_loss, accuracy, epoch_elapsed, avg_time_per_batch
+    return avg_loss, accuracy, epoch_elapsed, epoch_elapsed / len(dataloader2)
 
 
 def write_scalars(writer, t_loss, t_acc, v_loss, v_acc, fold, epoch):
