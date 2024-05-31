@@ -5,7 +5,7 @@ import random
 
 from Utils import parse_args, prepare_directory, test_and_train_split
 from DatasetHandler import generate_folds
-from Model import device, LeNet3D, LeNet3DBn
+from Model import device, LeNet3D, LeNet3DBn, ADNet
 from TrainingAlgorithm import train_model_2, test_models
 
 
@@ -34,8 +34,9 @@ def main(arguments):
     test_folds, train_folds = test_and_train_split(folds_arr)
 
     # model
-    lenet = create_model(args.batch_norm, args.volume)
-    adam = optim.Adam(lenet.parameters(), 0.0001)
+    # lenet = create_model(args.batch_norm, args.volume)
+    adnet = ADNet(args.volume)
+    adam = optim.Adam(adnet.parameters(), 0.0001)
     cross_entropy = nn.CrossEntropyLoss()
     num_epochs = args.epochs
     batch_size = args.batch
@@ -43,9 +44,9 @@ def main(arguments):
     # training and evaluation
     prepare_directory(args.model_path)
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    models_dir = train_model_2(lenet, adam, cross_entropy, train_folds, batch_size, num_epochs, device, timestamp,
+    models_dir = train_model_2(adnet, adam, cross_entropy, train_folds, batch_size, num_epochs, device, timestamp,
                                   args.model_path)
-    test_models(lenet, models_dir, cross_entropy, test_folds, batch_size, device, timestamp, args.model_path)
+    test_models(adnet, models_dir, cross_entropy, test_folds, batch_size, device, timestamp, args.model_path)
 
 
 # starting point

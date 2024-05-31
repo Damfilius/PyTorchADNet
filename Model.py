@@ -14,9 +14,10 @@ print(f"Using {device} device")
 
 
 class ADNet(nn.Module):
-    def __init__(self):
+    def __init__(self, volume):
         super(ADNet, self).__init__()
 
+        self.volume = volume
         self.filter_size = (3, 3, 3)
         self.padding = (1, 1, 1)
         self.stride = (1, 1, 1)
@@ -67,24 +68,24 @@ class ADNet(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(256, 512),
+            nn.Linear(self.volume, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Dropout(),
+            nn.Dropout(p=0.5),
 
             nn.Linear(512, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Dropout(),
+            nn.Dropout(p=0.5),
 
             nn.Linear(512, 3),
             nn.BatchNorm1d(3),
-            nn.Softmax()
+            nn.Softmax(dim=1)
         )
 
     def forward(self, x):
         x = self.features(x)
-        x = x.view(-1, 256 * 6 * 6 * 6)
+        x = x.view(-1, self.volume)
         x = self.classifier(x)
         return x
 
