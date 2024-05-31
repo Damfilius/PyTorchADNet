@@ -75,6 +75,7 @@ def parse_args(arguments):
     parser.add_argument('-b', '--batch', type=int, default=1)
     parser.add_argument('-n', '--batch_norm', type=bool, default=False)
     parser.add_argument('-v', '--volume', type=int, default=100000)
+    parser.add_argument('-p', '--patience', type=int, default=10)
     args = parser.parse_args(arguments)
     return args
 

@@ -35,7 +35,7 @@ def main(arguments):
 
     # model
     # lenet = create_model(args.batch_norm, args.volume)
-    adnet = ADNet(args.volume)
+    adnet = ADNet(args.volume).to(device)
     adam = optim.Adam(adnet.parameters(), 0.0001)
     cross_entropy = nn.CrossEntropyLoss()
     num_epochs = args.epochs
@@ -45,7 +45,7 @@ def main(arguments):
     prepare_directory(args.model_path)
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     models_dir = train_model_2(adnet, adam, cross_entropy, train_folds, batch_size, num_epochs, device, timestamp,
-                                  args.model_path)
+                                  args.model_path, patience=args.patience)
     test_models(adnet, models_dir, cross_entropy, test_folds, batch_size, device, timestamp, args.model_path)
 
 

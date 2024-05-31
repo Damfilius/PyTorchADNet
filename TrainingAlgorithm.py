@@ -224,7 +224,7 @@ def train_model(model, opt_fn, loss_fn, dataset, train_labels, batch_size, num_e
     return model_path
 
 
-def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device, timestamp, path):
+def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device, timestamp, path, patience=10):
     # logging and model
     writer = SummaryWriter(f"{path}/logs/")
     save(model.state_dict(), f"{path}/Models/init_model_{timestamp}")
@@ -261,6 +261,8 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
         best_validation_accuracy = 0
         model_path = f"{path}/Models/model_fold{i}_{timestamp}"
 
+        fold_patience = patience
+
         # train the model
         for e in range(num_epochs):
             t_loss, t_acc, train_time, avg_pred_time = train_one_epoch(model, train_loader, opt_fn, loss_fn, e, device)
@@ -272,6 +274,8 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
                 print("Saving the model...")
                 best_validation_accuracy = v_acc
                 save(model.state_dict(), model_path)
+            else:
+                fold_patience -= 1
 
             # benchmarks
             train_epoch_time = np.append(train_epoch_time, train_time)
@@ -283,6 +287,9 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
             train_accuracies = np.append(train_accuracies, t_acc)
             validation_losses = np.append(validation_losses, v_loss)
             validation_accuracies = np.append(validation_accuracies, v_acc)
+
+            if fold_patience == 0:
+                break
 
         # saving the performance metrics
         save_accs_and_losses(train_losses, train_accuracies, validation_losses, validation_accuracies, i, timestamp, path)
