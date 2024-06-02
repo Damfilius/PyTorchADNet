@@ -12,6 +12,7 @@ from scipy.ndimage import zoom
 import shutil
 import subprocess
 from Utils import create_dir
+import pandas as pd
 
 
 def compute_min_roi(input_dir, output_dir):
@@ -638,17 +639,35 @@ def downcast_mri_scans(in_dir, out_dir):
         nib.save(new_img, output_filename)
 
 
+def balance_out_classes(in_dir, labels_file):
+    labels = os.path.join(in_dir, labels_file)
+    labels_csv = pd.read_csv(labels, header=None)
+    demographic = np.array([0.0, 0.0, 0.0])
+
+    for i in range(len(labels_csv)):
+        label = labels_csv.iloc[i, 1]
+        demographic[label] += 1
+
+    desired_mci_num = np.ceil((demographic[0] + demographic[1]) / 2)
+
+    for i in range(len(labels_csv)):
+        label = labels_csv.iloc[i, 1]
+        if label == 2:
+            mci_file = labels_csv.iloc[i, 0]
+            mci_file_path = os.path.join(in_dir, mci_file)
+            os.remove(mci_file_path)
+            demographic[label] -= 1
+            if demographic[2] == desired_mci_num:
+                break
+
 
 if __name__ == '__main__':
     folds_dir = ""
-    in_dir = ""
-    out_dir = ""
+    labels_file = "labels.csv"
     
     for fold in os.listdir(folds_dir):
         fold_dir = os.path.join(folds_dir, fold)
-
-        downcast_mri_scans(fold_dir, out_dir)
-    
+        balance_out_classes(fold_dir, labels_file)
 
 
 
