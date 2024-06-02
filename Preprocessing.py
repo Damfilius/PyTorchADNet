@@ -650,6 +650,7 @@ def balance_out_classes(in_dir, labels_file):
 
     desired_mci_num = np.ceil((demographic[0] + demographic[1]) / 2)
 
+    indices_to_rm = np.array([])
     for i in range(len(labels_csv)):
         label = labels_csv.iloc[i, 1]
         if label == 2:
@@ -657,8 +658,12 @@ def balance_out_classes(in_dir, labels_file):
             mci_file_path = os.path.join(in_dir, mci_file)
             os.remove(mci_file_path)
             demographic[label] -= 1
+            indices_to_rm = np.append(indices_to_rm, i)
             if demographic[2] == desired_mci_num:
                 break
+
+    labels_csv = labels_csv.drop(indices_to_rm)
+    labels_csv.to_csv(labels, index=False, header=False)
 
 
 if __name__ == '__main__':
