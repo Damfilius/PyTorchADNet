@@ -242,7 +242,7 @@ def train_model_2(model, opt_fn, loss_fn, folds, batch_size, num_epochs, device,
         validation_dataset = ConcatDataset(validation_folds)
         training_folds = np.delete(folds, index_pair)
         training_dataset = ConcatDataset(training_folds)
-        train_loader = DataLoader(training_dataset, batch_size, drop_last=True)
+        train_loader = DataLoader(training_dataset, batch_size, shuffle=True, drop_last=True)
         validation_loader = DataLoader(validation_dataset, batch_size, drop_last=True)
 
         # training performance

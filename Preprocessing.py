@@ -666,13 +666,34 @@ def balance_out_classes(in_dir, labels_file):
     labels_csv.to_csv(labels, index=False, header=False)
 
 
-if __name__ == '__main__':
-    folds_dir = ""
-    labels_file = "labels.csv"
+def count_zero_voxels(nifti_file):
+    # Load the NIfTI file
+    img = nib.load(nifti_file)
     
-    for fold in os.listdir(folds_dir):
-        fold_dir = os.path.join(folds_dir, fold)
-        balance_out_classes(fold_dir, labels_file)
+    # Get the data as a numpy array
+    data = img.get_fdata()
+    
+    # Count the number of zero-intensity voxels
+    zero_voxel_count = np.sum(data == 0)
+    
+    return zero_voxel_count
 
 
+def avg_sparsity(in_dir):
+    total_zero_voxels = 0
+    for mri in os.listdir(in_dir):
+        if ".nii" not in mri:
+            continue
+
+        mri_file = os.path.join(in_dir, mri)
+        total_zero_voxels += count_zero_voxels(mri_file)
+
+    return total_zero_voxels / len(os.listdir(in_dir))
+
+
+if __name__ == '__main__':
+    folds_dir = "/home/damfil/Uni/FYP/resources/mri/ad/dataset/preprocessed/folds_preprocessing/fold1p/mean_roi_reg_brains"
+    
+    total_avg = avg_sparsity(folds_dir)
+    print(f"average: {total_avg}")
 
